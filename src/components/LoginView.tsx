@@ -131,7 +131,7 @@ export const LoginView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-[#2a0040] via-[#660099] to-[#1a0029] flex items-center justify-center p-4 sm:p-6 md:p-8 relative overflow-hidden">
+    <div className="min-h-screen w-full bg-gradient-to-br from-[#2a0040] via-[#660099] to-[#1a0029] flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
       {/* Background Ambient Glows */}
       <motion.div
         animate={{
@@ -184,42 +184,42 @@ export const LoginView: React.FC = () => {
         />
       ))}
 
-      {/* Main Glassmorphism Login Card — Taller & 100% Responsive */}
+      {/* Slim & Elegant Compact Glassmorphism Login Card */}
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="w-full max-w-[350px] sm:max-w-sm relative z-10"
+        className="w-full max-w-[320px] sm:max-w-[340px] relative z-10 mx-auto"
       >
-        <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 sm:p-8 min-h-[480px] sm:min-h-[510px] flex flex-col justify-between shadow-[0_25px_60px_rgba(0,0,0,0.5)] relative overflow-hidden">
+        <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 sm:p-7 min-h-[460px] flex flex-col justify-between shadow-[0_25px_60px_rgba(0,0,0,0.5)] relative overflow-hidden">
           {/* Subtle Top Glow inside Card */}
           <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-32 bg-white/20 blur-2xl rounded-full pointer-events-none" />
 
           {/* White Logos Header */}
-          <div className="text-center pt-2 pb-2 relative">
-            <div className="flex items-center justify-center gap-3.5 mb-3">
+          <div className="text-center pt-1 pb-1 relative">
+            <div className="flex items-center justify-center gap-3 mb-2.5">
               <img
                 src={logoVivo}
                 alt="Vivo"
-                className="h-8 sm:h-9 object-contain brightness-0 invert drop-shadow-[0_2px_10px_rgba(255,255,255,0.4)]"
+                className="h-7 w-auto object-contain brightness-0 invert drop-shadow-[0_2px_10px_rgba(255,255,255,0.4)]"
               />
-              <div className="h-6 sm:h-7 w-px bg-white/30" />
+              <div className="h-6 w-px bg-white/30" />
               <img
                 src={logoApp}
                 alt="Logo"
-                className="h-10 sm:h-11 object-contain brightness-0 invert drop-shadow-[0_2px_10px_rgba(255,255,255,0.4)]"
+                className="h-9 w-auto object-contain brightness-0 invert drop-shadow-[0_2px_10px_rgba(255,255,255,0.4)]"
               />
             </div>
-            <p className="text-purple-200/90 text-xs sm:text-sm font-semibold tracking-wide">Gestão de EPI</p>
+            <p className="text-purple-200/90 text-xs font-semibold tracking-wide">Gestão de EPI</p>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleLoginSubmit} className="space-y-4 sm:space-y-5 relative my-auto py-2">
+          <form onSubmit={handleLoginSubmit} className="space-y-4 relative my-auto py-2">
             {errorMessage && (
               <motion.div
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2.5 bg-rose-500/20 border border-rose-400/40 text-rose-100 px-3.5 py-2.5 rounded-xl text-xs backdrop-blur-md"
+                className="flex items-center gap-2 bg-rose-500/20 border border-rose-400/40 text-rose-100 px-3 py-2 rounded-xl text-xs backdrop-blur-md"
               >
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-300" />
                 <span>{errorMessage}</span>
@@ -227,11 +227,11 @@ export const LoginView: React.FC = () => {
             )}
 
             <div>
-              <label className="block text-purple-100 text-xs font-bold uppercase tracking-wider mb-1.5">
+              <label className="block text-purple-100 text-[11px] font-bold uppercase tracking-wider mb-1.5">
                 E-mail
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-200" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-200" />
                 <input
                   id="login-email"
                   type="email"
@@ -239,18 +239,18 @@ export const LoginView: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu.email@empresa.com"
                   autoComplete="email"
-                  className="w-full pl-10 pr-4 py-3 sm:py-3.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-200/50 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/50 transition-all text-sm font-medium"
+                  className="w-full pl-9 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-200/50 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/50 transition-all text-xs font-medium"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-purple-100 text-xs font-bold uppercase tracking-wider mb-1.5">
+              <label className="block text-purple-100 text-[11px] font-bold uppercase tracking-wider mb-1.5">
                 Senha
               </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-200" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-200" />
                 <input
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
@@ -258,29 +258,29 @@ export const LoginView: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="w-full pl-10 pr-12 py-3 sm:py-3.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-200/50 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/50 transition-all text-sm font-medium"
+                  className="w-full pl-9 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-200/50 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/50 transition-all text-xs font-medium"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-purple-200 hover:text-white transition-colors p-1 cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-200 hover:text-white transition-colors p-1 cursor-pointer"
                   tabIndex={-1}
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
+            <div className="flex items-center justify-between pt-0.5">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-white/30 bg-white/10 text-purple-500 focus:ring-purple-400 cursor-pointer"
+                  className="w-3.5 h-3.5 rounded border-white/30 bg-white/10 text-purple-500 focus:ring-purple-400 cursor-pointer"
                 />
-                <span className="text-xs text-purple-200 font-medium">Lembrar-me</span>
+                <span className="text-[11px] text-purple-200 font-medium">Lembrar-me</span>
               </label>
 
               <button
@@ -291,7 +291,7 @@ export const LoginView: React.FC = () => {
                   setForgotError('');
                   setForgotEmail('');
                 }}
-                className="text-xs text-purple-200 hover:text-white font-bold underline transition-colors cursor-pointer"
+                className="text-[11px] text-purple-200 hover:text-white font-bold underline transition-colors cursor-pointer"
               >
                 Esqueceu a senha?
               </button>
@@ -301,14 +301,14 @@ export const LoginView: React.FC = () => {
               id="btn-login"
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 bg-white text-[#660099] font-extrabold rounded-xl transition-all flex items-center justify-center gap-2 shadow-xl hover:bg-purple-50 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer mt-3 text-sm tracking-wide"
+              className="w-full py-3 bg-white text-[#660099] font-extrabold rounded-xl transition-all flex items-center justify-center gap-2 shadow-xl hover:bg-purple-50 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer mt-2 text-xs tracking-wide uppercase"
             >
               {isLoading ? (
-                <span className="w-5 h-5 border-2 border-[#660099]/30 border-t-[#660099] rounded-full animate-spin" />
+                <span className="w-4 h-4 border-2 border-[#660099]/30 border-t-[#660099] rounded-full animate-spin" />
               ) : (
                 <>
                   <span>Entrar no Sistema</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}
             </button>
@@ -322,11 +322,11 @@ export const LoginView: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
+            className="bg-white rounded-2xl shadow-2xl max-w-xs w-full overflow-hidden"
           >
             {/* Standardized Purple Header */}
-            <div className="bg-[#660099] px-5 py-4 flex items-center justify-between">
-              <h3 className="font-bold text-white text-base flex items-center gap-2">
+            <div className="bg-[#660099] px-5 py-3.5 flex items-center justify-between">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <KeyRound className="w-4 h-4" />
                 <span>Recuperar Senha</span>
               </h3>
@@ -339,27 +339,27 @@ export const LoginView: React.FC = () => {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6">
+            <div className="p-5">
               {forgotSuccess ? (
                 <div className="text-center py-3 space-y-3">
-                  <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-7 h-7" />
+                  <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-6 h-6" />
                   </div>
-                  <h4 className="text-base font-bold text-slate-800">E-mail enviado!</h4>
+                  <h4 className="text-sm font-bold text-slate-800">E-mail enviado!</h4>
                   <p className="text-slate-600 text-xs max-w-xs mx-auto">
                     Se o e-mail informado estiver cadastrado, você receberá o link para redefinição em instantes.
                   </p>
                   <div className="pt-2">
                     <button
                       onClick={() => setIsForgotModalOpen(false)}
-                      className="px-5 py-2.5 bg-[#660099] text-white font-bold text-sm rounded-xl hover:bg-[#52007a] transition-all shadow-md cursor-pointer"
+                      className="px-4 py-2 bg-[#660099] text-white font-bold text-xs rounded-xl hover:bg-[#52007a] transition-all shadow-md cursor-pointer"
                     >
                       Voltar ao Login
                     </button>
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                <form onSubmit={handleForgotPasswordSubmit} className="space-y-3.5">
                   <p className="text-xs text-slate-600">
                     Digite seu e-mail cadastrado. Enviaremos as instruções para você redefinir sua senha com segurança.
                   </p>
@@ -372,7 +372,7 @@ export const LoginView: React.FC = () => {
                   )}
 
                   <div>
-                    <label className="block text-slate-700 text-xs font-bold mb-1">
+                    <label className="block text-slate-700 text-[11px] font-bold mb-1">
                       Seu E-mail
                     </label>
                     <div className="relative">
@@ -382,7 +382,7 @@ export const LoginView: React.FC = () => {
                         value={forgotEmail}
                         onChange={(e) => setForgotEmail(e.target.value)}
                         placeholder="seu.email@empresa.com"
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-[#660099] focus:outline-none"
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-[#660099] focus:outline-none"
                         required
                       />
                     </div>
@@ -393,14 +393,14 @@ export const LoginView: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setIsForgotModalOpen(false)}
-                      className="px-4 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors text-xs cursor-pointer"
+                      className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors text-xs cursor-pointer"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
                       disabled={forgotLoading}
-                      className="px-4 py-2 bg-[#660099] text-white font-bold rounded-xl hover:bg-[#52007a] transition-colors text-xs disabled:opacity-60 cursor-pointer shadow-md"
+                      className="px-3.5 py-1.5 bg-[#660099] text-white font-bold rounded-xl hover:bg-[#52007a] transition-colors text-xs disabled:opacity-60 cursor-pointer shadow-md"
                     >
                       {forgotLoading ? 'Enviando...' : 'Enviar Link'}
                     </button>

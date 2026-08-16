@@ -6,6 +6,56 @@ import { sendLowStockAlert } from '../lib/email.js';
 export const movementsRouter = Router();
 movementsRouter.use(authenticate);
 
+// Helper to resolve real item or auto-create item for a location from catalog
+async function getOrCreateItemForLocation(itemId: string, targetLocationId?: string) {
+  if (itemId.startsWith('virtual-')) {
+    const parts = itemId.split('-');
+    // format: virtual-<realItemId>-<locationId>
+    const locationId = targetLocationId || parts[parts.length - 1];
+    const realItemId = parts[1];
+
+    const sourceItem = await prisma.epiItem.findUnique({ where: { id: realItemId } });
+    if (sourceItem && locationId) {
+      let existing = await prisma.epiItem.findFirst({
+        where: { name: sourceItem.name, locationId },
+      });
+
+      if (!existing) {
+        existing = await prisma.epiItem.create({
+          data: {
+            name: sourceItem.name,
+            type: sourceItem.type,
+            caNumber: sourceItem.caNumber,
+            caExpiry: sourceItem.caExpiry,
+            brand: sourceItem.brand,
+            category: sourceItem.category,
+            protectionCategory: sourceItem.protectionCategory,
+            unit: sourceItem.unit,
+            quantity: 0,
+            minQuantity: sourceItem.minQuantity,
+            imageUrl: sourceItem.imageUrl,
+            description: sourceItem.description,
+            locationId,
+          },
+        });
+      }
+      return existing;
+    }
+  }
+
+  return await prisma.epiItem.findUnique({ where: { id: itemId }, include: { location: true } });
+}
+
+async function checkLowStock(itemId: string) {
+  const item = await prisma.epiItem.findUnique({
+    where: { id: itemId },
+    include: { location: true },
+  });
+  if (item && item.quantity <= item.minQuantity && item.minQuantity > 0) {
+    await sendLowStockAlert(item.name, item.location.name, item.quantity, item.minQuantity);
+  }
+}
+
 // GET /api/movements
 movementsRouter.get('/', async (req, res) => {
   try {
@@ -24,16 +74,6 @@ movementsRouter.get('/', async (req, res) => {
   }
 });
 
-async function checkLowStock(itemId: string) {
-  const item = await prisma.epiItem.findUnique({
-    where: { id: itemId },
-    include: { location: true },
-  });
-  if (item && item.quantity <= item.minQuantity && item.minQuantity > 0) {
-    await sendLowStockAlert(item.name, item.location.name, item.quantity, item.minQuantity);
-  }
-}
-
 // POST /api/movements/entry
 movementsRouter.post('/entry', requireAdminOrController, async (req: AuthRequest, res) => {
   try {
@@ -43,19 +83,20 @@ movementsRouter.post('/entry', requireAdminOrController, async (req: AuthRequest
       return;
     }
 
-    const item = await prisma.epiItem.findUnique({ where: { id: itemId }, include: { location: true } });
+    const item = await getOrCreateItemForLocation(itemId);
     if (!item) { res.status(404).json({ message: 'Item não encontrado.' }); return; }
 
+    const location = await prisma.location.findUnique({ where: { id: item.locationId } });
     const prev = item.quantity;
     const newQty = prev + quantity;
 
     const [updated, movement] = await prisma.$transaction([
-      prisma.epiItem.update({ where: { id: itemId }, data: { quantity: newQty } }),
+      prisma.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } }),
       prisma.stockMovement.create({
         data: {
           type: 'ENTRADA', quantity, previousQuantity: prev, newQuantity: newQty,
-          itemId, itemName: item.name,
-          locationId: item.locationId, locationName: item.location.name,
+          itemId: item.id, itemName: item.name,
+          locationId: item.locationId, locationName: location?.name || item.locationId,
           employeeName, employeeRole, employeeRegistration, reason, notes,
           userId: req.user!.id,
         },
@@ -73,30 +114,31 @@ movementsRouter.post('/entry', requireAdminOrController, async (req: AuthRequest
 movementsRouter.post('/exit', requireAdminOrController, async (req: AuthRequest, res) => {
   try {
     const { itemId, quantity, reason, employeeName, employeeRole, employeeRegistration, notes } = req.body;
-    const item = await prisma.epiItem.findUnique({ where: { id: itemId }, include: { location: true } });
+    const item = await getOrCreateItemForLocation(itemId);
     if (!item) { res.status(404).json({ message: 'Item não encontrado.' }); return; }
     if (item.quantity < quantity) {
       res.status(400).json({ message: 'Saldo insuficiente.' });
       return;
     }
 
+    const location = await prisma.location.findUnique({ where: { id: item.locationId } });
     const prev = item.quantity;
     const newQty = prev - quantity;
 
     const [updated, movement] = await prisma.$transaction([
-      prisma.epiItem.update({ where: { id: itemId }, data: { quantity: newQty } }),
+      prisma.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } }),
       prisma.stockMovement.create({
         data: {
           type: 'SAIDA', quantity, previousQuantity: prev, newQuantity: newQty,
-          itemId, itemName: item.name,
-          locationId: item.locationId, locationName: item.location.name,
+          itemId: item.id, itemName: item.name,
+          locationId: item.locationId, locationName: location?.name || item.locationId,
           employeeName, employeeRole, employeeRegistration, reason, notes,
           userId: req.user!.id,
         },
       }),
     ]);
 
-    await checkLowStock(itemId);
+    await checkLowStock(item.id);
     res.json({ item: updated, movement: { ...movement, timestamp: movement.createdAt.toISOString() } });
   } catch (e) {
     console.error(e);
@@ -113,9 +155,7 @@ movementsRouter.post('/batch', requireAdminOrController, async (req: AuthRequest
 
     const results = [];
     for (const entry of entries) {
-      const item = await prisma.epiItem.findFirst({
-        where: { id: entry.itemId, locationId },
-      });
+      const item = await getOrCreateItemForLocation(entry.itemId, locationId);
       if (!item || entry.quantity <= 0) continue;
 
       const prev = item.quantity;
@@ -150,7 +190,7 @@ movementsRouter.post('/batch', requireAdminOrController, async (req: AuthRequest
 movementsRouter.post('/transfer', requireAdminOrController, async (req: AuthRequest, res) => {
   try {
     const { sourceItemId, targetLocationId, quantity, reason, notes } = req.body;
-    const sourceItem = await prisma.epiItem.findUnique({ where: { id: sourceItemId }, include: { location: true } });
+    const sourceItem = await getOrCreateItemForLocation(sourceItemId);
     if (!sourceItem) { res.status(404).json({ message: 'Item de origem não encontrado.' }); return; }
     if (sourceItem.locationId === targetLocationId) {
       res.status(400).json({ message: 'Origem e destino são iguais.' });
@@ -161,42 +201,47 @@ movementsRouter.post('/transfer', requireAdminOrController, async (req: AuthRequ
       return;
     }
 
+    const sourceLocation = await prisma.location.findUnique({ where: { id: sourceItem.locationId } });
     const targetLocation = await prisma.location.findUnique({ where: { id: targetLocationId } });
     if (!targetLocation) { res.status(404).json({ message: 'Localidade de destino não encontrada.' }); return; }
 
     const prevSrc = sourceItem.quantity;
     const newSrc = prevSrc - quantity;
 
-    // Find or create matching item at target
     let targetItem = await prisma.epiItem.findFirst({
       where: { locationId: targetLocationId, name: sourceItem.name },
     });
 
-    const prevTarget = targetItem?.quantity || 0;
+    if (!targetItem) {
+      targetItem = await prisma.epiItem.create({
+        data: {
+          name: sourceItem.name, type: sourceItem.type, caNumber: sourceItem.caNumber,
+          caExpiry: sourceItem.caExpiry, brand: sourceItem.brand, category: sourceItem.category,
+          protectionCategory: sourceItem.protectionCategory, unit: sourceItem.unit,
+          quantity: 0, minQuantity: sourceItem.minQuantity, imageUrl: sourceItem.imageUrl,
+          description: sourceItem.description, locationId: targetLocationId,
+        },
+      });
+    }
+
+    const prevTarget = targetItem.quantity;
     const newTarget = prevTarget + quantity;
 
     await prisma.$transaction(async (tx) => {
-      await tx.epiItem.update({ where: { id: sourceItemId }, data: { quantity: newSrc } });
-
-      if (targetItem) {
-        await tx.epiItem.update({ where: { id: targetItem.id }, data: { quantity: newTarget } });
-      } else {
-        targetItem = await tx.epiItem.create({
-          data: { ...sourceItem, id: undefined as any, quantity: newTarget, locationId: targetLocationId, createdAt: undefined as any, updatedAt: undefined as any },
-        });
-      }
+      await tx.epiItem.update({ where: { id: sourceItem.id }, data: { quantity: newSrc } });
+      await tx.epiItem.update({ where: { id: targetItem.id }, data: { quantity: newTarget } });
 
       await tx.stockMovement.createMany({
         data: [
           {
             type: 'TRANSFERENCIA_SAIDA', quantity, previousQuantity: prevSrc, newQuantity: newSrc,
-            itemId: sourceItemId, itemName: sourceItem.name,
-            locationId: sourceItem.locationId, locationName: sourceItem.location.name,
+            itemId: sourceItem.id, itemName: sourceItem.name,
+            locationId: sourceItem.locationId, locationName: sourceLocation?.name || sourceItem.locationId,
             reason, notes, userId: req.user!.id,
           },
           {
             type: 'TRANSFERENCIA_ENTRADA', quantity, previousQuantity: prevTarget, newQuantity: newTarget,
-            itemId: targetItem!.id, itemName: targetItem!.name,
+            itemId: targetItem.id, itemName: targetItem.name,
             locationId: targetLocationId, locationName: targetLocation.name,
             reason, notes, userId: req.user!.id,
           },
@@ -224,7 +269,7 @@ movementsRouter.post('/deliver-kit', requireAdminOrController, async (req: AuthR
 
     // Validate availability
     for (const comp of kit.components) {
-      const item = await prisma.epiItem.findFirst({ where: { id: comp.itemId, locationId } });
+      const item = await getOrCreateItemForLocation(comp.itemId, locationId);
       if (!item || item.quantity < comp.quantity * quantityOfKits) {
         res.status(400).json({ message: `Saldo insuficiente para: ${comp.itemName}` });
         return;
@@ -234,7 +279,7 @@ movementsRouter.post('/deliver-kit', requireAdminOrController, async (req: AuthR
     // Deduct
     await prisma.$transaction(async (tx) => {
       for (const comp of kit.components) {
-        const item = await tx.epiItem.findFirst({ where: { id: comp.itemId, locationId } });
+        const item = await getOrCreateItemForLocation(comp.itemId, locationId);
         if (!item) continue;
         const deduct = comp.quantity * quantityOfKits;
         const prev = item.quantity;

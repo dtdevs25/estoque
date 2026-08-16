@@ -381,10 +381,58 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const exportBackupJSON = () => JSON.stringify({ locations, items, kits, movements, users }, null, 2);
   const importBackupJSON = (_json: string) => false;
 
+  // ── Compute Homologated Items Display per Location ────────────────────────
+  const displayItems = useMemo(() => {
+    if (items.length === 0) return [];
+
+    // Group items by name (case-insensitive) to form the Homologated Catalog
+    const catalogMap = new Map<string, EpiItem>();
+    for (const item of items) {
+      const key = (item.name || '').trim().toLowerCase();
+      if (!catalogMap.has(key)) {
+        catalogMap.set(key, item);
+      }
+    }
+
+    // Case 1: ALL locations selected
+    if (selectedLocationId === 'ALL') {
+      return Array.from(catalogMap.values()).map(template => {
+        const key = (template.name || '').trim().toLowerCase();
+        const matching = items.filter(i => (i.name || '').trim().toLowerCase() === key);
+        const totalQty = matching.reduce((sum, i) => sum + i.quantity, 0);
+        return {
+          ...template,
+          quantity: totalQty,
+          locationId: 'ALL',
+        };
+      });
+    }
+
+    // Case 2: Specific location selected
+    return Array.from(catalogMap.values()).map(template => {
+      const key = (template.name || '').trim().toLowerCase();
+      const matchInLocation = items.find(
+        i => (i.name || '').trim().toLowerCase() === key && i.locationId === selectedLocationId
+      );
+
+      if (matchInLocation) {
+        return matchInLocation;
+      }
+
+      // Virtual item representation for this location with 0 stock
+      return {
+        ...template,
+        id: `virtual-${template.id}-${selectedLocationId}`,
+        locationId: selectedLocationId,
+        quantity: 0,
+      };
+    });
+  }, [items, selectedLocationId]);
+
   // ── Context Value ─────────────────────────────────────────────────────────
 
   const value: StockContextType = {
-    locations, items, kits, movements, users, isLoading,
+    locations, items: displayItems, kits, movements, users, isLoading,
     currentUserId, currentUser, selectedLocationId, setSelectedLocationId,
     isAuthenticated, login, logout,
     addUser, updateUser, deleteUser, setCurrentUserId,

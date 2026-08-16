@@ -75,11 +75,6 @@ export const ItemsView: React.FC<ItemsViewProps> = ({
       if (viewType === 'ERGONOMICO' && item.type !== 'ERGONOMICO') return false;
       if (viewType === 'EPI_EPC' && item.type === 'ERGONOMICO') return false;
 
-      // Location filter
-      if (selectedLocationId !== 'ALL' && item.locationId !== selectedLocationId) {
-        return false;
-      }
-
       // Category filter
       if (selectedCategory !== 'ALL' && item.category !== selectedCategory) {
         return false;

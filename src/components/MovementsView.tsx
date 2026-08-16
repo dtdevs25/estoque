@@ -458,15 +458,6 @@ export const MovementsView: React.FC = () => {
       {/* ========================================================================= */}
       {activeSubTab === 'batch' && (
         <div className="space-y-5">
-          
-          {/* Summary Stat Indicator */}
-          <div className="bg-gradient-to-r from-[#4B0072] to-[#660099] text-white rounded-2xl px-5 py-3.5 border border-purple-900 shadow-xs flex items-center justify-between gap-4">
-            <span className="text-xs font-semibold text-purple-100">Total Selecionado para Lançamento:</span>
-            <div className="flex items-center gap-2 bg-black/25 px-4 py-1.5 rounded-xl border border-white/15 font-mono font-bold text-white text-base">
-              <span>{activeBatchTotalUnits} itens</span>
-              <span className="text-purple-300 font-sans text-xs font-normal">({activeBatchCount} EPIs)</span>
-            </div>
-          </div>
 
           {batchSuccessMsg && (
             <div className="p-4 bg-purple-50 border border-purple-200 text-[#660099] rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2">
@@ -764,33 +755,33 @@ export const MovementsView: React.FC = () => {
                 </div>
               )}
 
-              {/* Fixed Bottom Submit Action Bar */}
-              <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-purple-200 shadow-2xl p-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-xs text-slate-600">
-                  Total selecionado para gravação: <strong className="text-[#660099] font-mono text-sm">{activeBatchTotalUnits} unidades</strong> em <strong className="text-slate-900">{activeBatchCount} EPIs</strong>.
-                </div>
+            </div>
 
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleClearBatchForm}
-                    className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-                  >
-                    Limpar
-                  </button>
-
-                  <button
-                    id="btn-submit-batch-movement"
-                    type="submit"
-                    disabled={activeBatchCount === 0}
-                    className="flex items-center gap-2 px-6 py-3 bg-[#660099] hover:bg-[#52007a] disabled:bg-slate-300 disabled:text-slate-500 text-white rounded-xl font-extrabold text-sm shadow-lg shadow-purple-950/20 transition-all active:scale-95 cursor-pointer"
-                  >
-                    <PackageCheck className="w-5 h-5" />
-                    <span>Concluir Lançamento em Lote</span>
-                  </button>
-                </div>
+            {/* Sticky Submit Action Bar (aligned inside content area, next to sidebar) */}
+            <div className="sticky bottom-3 z-30 bg-white/95 backdrop-blur-md border border-purple-200 shadow-2xl rounded-2xl p-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 mt-5">
+              <div className="text-xs text-slate-600">
+                Total selecionado para gravação: <strong className="text-[#660099] font-mono text-sm">{activeBatchTotalUnits} unidades</strong> em <strong className="text-slate-900">{activeBatchCount} EPIs</strong>.
               </div>
 
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleClearBatchForm}
+                  className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                >
+                  Limpar
+                </button>
+
+                <button
+                  id="btn-submit-batch-movement"
+                  type="submit"
+                  disabled={activeBatchCount === 0}
+                  className="flex items-center gap-2 px-6 py-3 bg-[#660099] hover:bg-[#52007a] disabled:bg-slate-300 disabled:text-slate-500 text-white rounded-xl font-extrabold text-sm shadow-lg shadow-purple-950/20 transition-all active:scale-95 cursor-pointer"
+                >
+                  <PackageCheck className="w-5 h-5" />
+                  <span>Concluir Lançamento em Lote</span>
+                </button>
+              </div>
             </div>
 
           </form>

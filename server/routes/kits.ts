@@ -5,6 +5,13 @@ import { authenticate, requireAdmin, requireAdminOrController } from '../middlew
 export const kitsRouter = Router();
 kitsRouter.use(authenticate);
 
+function parseQty(c: any): number {
+  const val = c.quantity ?? c.requiredQuantity;
+  if (val === undefined || val === null) return 1;
+  const num = parseInt(String(val), 10);
+  return isNaN(num) || num < 1 ? 1 : num;
+}
+
 // GET /api/kits
 kitsRouter.get('/', async (_req, res) => {
   try {
@@ -13,7 +20,8 @@ kitsRouter.get('/', async (_req, res) => {
       orderBy: { createdAt: 'desc' },
     });
     res.json(kits);
-  } catch {
+  } catch (e) {
+    console.error('Error listing kits:', e);
     res.status(500).json({ message: 'Erro ao listar kits.' });
   }
 });
@@ -29,21 +37,21 @@ kitsRouter.post('/', requireAdminOrController, async (req, res) => {
 
     const kit = await prisma.epiKit.create({
       data: {
-        name,
-        description,
+        name: String(name).trim(),
+        description: description ? String(description).trim() : '',
         type: type || 'EPI_EPC',
-        imageUrl,
+        imageUrl: imageUrl || '',
         components: {
           create: components.map((c: any) => ({
-            itemId: c.itemId || '',
-            itemName: c.itemName || 'Item',
-            quantity: Number(c.quantity || c.requiredQuantity || 1),
+            itemId: String(c.itemId || ''),
+            itemName: String(c.itemName || 'Item'),
+            quantity: parseQty(c),
           })),
         },
       },
       include: { components: true },
     });
-    res.status(201).json(kit);
+    res.json(kit);
   } catch (e) {
     console.error('Error creating kit:', e);
     res.status(500).json({ message: 'Erro ao criar kit.' });
@@ -61,15 +69,15 @@ kitsRouter.put('/:id', requireAdminOrController, async (req, res) => {
     const kit = await prisma.epiKit.update({
       where: { id: req.params.id },
       data: {
-        name,
-        description,
+        name: String(name).trim(),
+        description: description ? String(description).trim() : '',
         type,
-        imageUrl,
+        imageUrl: imageUrl || '',
         components: {
           create: components?.map((c: any) => ({
-            itemId: c.itemId || '',
-            itemName: c.itemName || 'Item',
-            quantity: Number(c.quantity || c.requiredQuantity || 1),
+            itemId: String(c.itemId || ''),
+            itemName: String(c.itemName || 'Item'),
+            quantity: parseQty(c),
           })) || [],
         },
       },
@@ -87,7 +95,8 @@ kitsRouter.delete('/:id', requireAdmin, async (req, res) => {
   try {
     await prisma.epiKit.delete({ where: { id: req.params.id } });
     res.json({ success: true });
-  } catch {
+  } catch (e) {
+    console.error('Error deleting kit:', e);
     res.status(500).json({ message: 'Erro ao excluir kit.' });
   }
 });

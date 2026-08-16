@@ -150,12 +150,15 @@ export const KitDeliveryModal: React.FC<KitDeliveryModalProps> = ({
               Itens que serão baixados (Qtd x {quantityOfKits}):
             </span>
             <div className="space-y-1 text-xs">
-              {kit.components.map((comp, idx) => (
-                <div key={idx} className="flex justify-between text-slate-700">
-                  <span>• {comp.itemName}</span>
-                  <strong className="font-mono text-[#660099]">{comp.requiredQuantity * quantityOfKits} {comp.unit}</strong>
-                </div>
-              ))}
+              {kit.components.map((comp, idx) => {
+                const reqQty = comp.requiredQuantity || (comp as any).quantity || 1;
+                return (
+                  <div key={idx} className="flex justify-between text-slate-700">
+                    <span>• {comp.itemName}</span>
+                    <strong className="font-mono text-[#660099]">{reqQty * quantityOfKits} {comp.unit || 'un'}</strong>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

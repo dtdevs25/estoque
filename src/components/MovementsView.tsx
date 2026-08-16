@@ -196,6 +196,8 @@ export const MovementsView: React.FC = () => {
     });
   }, [batchEntries, items, batchAdjustMode]);
 
+  const activeBatchCount = activeBatchEntries.length;
+
   const activeBatchTotalUnits = activeBatchEntries.reduce((acc, [itemId, e]) => {
     const item = items.find(i => i.id === itemId);
     if (!item) return acc;

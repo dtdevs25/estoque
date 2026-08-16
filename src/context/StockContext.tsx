@@ -59,6 +59,10 @@ interface StockContextType {
     sourceItemId: string; targetLocationId: string; quantity: number; reason: string; notes?: string;
   }) => Promise<{ success: boolean; error?: string }>;
 
+  adjustStock: (params: {
+    itemId: string; newQuantity: number; reason: string; notes?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+
   addKit: (kit: Omit<EpiKit, 'id' | 'createdAt' | 'updatedAt'>) => Promise<EpiKit>;
   updateKit: (id: string, kit: Partial<EpiKit>) => Promise<void>;
   deleteKit: (id: string) => Promise<void>;
@@ -326,6 +330,19 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
+  const adjustStock = async (params: {
+    itemId: string; newQuantity: number; reason: string; notes?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await api.movements.adjust(params);
+      setItems(prev => prev.map(i => i.id === res.item.id ? { ...i, ...res.item } : i));
+      setMovements(prev => [res.movement, ...prev]);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  };
+
   // ── Kits CRUD ─────────────────────────────────────────────────────────────
 
   const addKit = async (data: Omit<EpiKit, 'id' | 'createdAt' | 'updatedAt'>): Promise<EpiKit> => {
@@ -504,7 +521,7 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     canEditStock, canManageUsers, canManageLocations, userAccessibleLocations,
     addLocation, updateLocation, deleteLocation,
     addItem, updateItem, deleteItem,
-    registerSingleMovement, registerBatchMovement, transferStock,
+    registerSingleMovement, registerBatchMovement, transferStock, adjustStock,
     addKit, updateKit, deleteKit, deliverKit,
     getKitAvailabilityForLocation, getAllKitsAvailability,
     resetToDefaultData, exportBackupJSON, importBackupJSON,

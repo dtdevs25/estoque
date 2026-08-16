@@ -72,6 +72,7 @@ export const movements = {
   entry: (data: any) => req<any>('/movements/entry', { method: 'POST', body: JSON.stringify(data) }),
   exit: (data: any) => req<any>('/movements/exit', { method: 'POST', body: JSON.stringify(data) }),
   batch: (data: any) => req<any>('/movements/batch', { method: 'POST', body: JSON.stringify(data) }),
+  adjust: (data: any) => req<any>('/movements/adjust', { method: 'POST', body: JSON.stringify(data) }),
   transfer: (data: any) => req<any>('/movements/transfer', { method: 'POST', body: JSON.stringify(data) }),
   deliverKit: (data: any) => req<any>('/movements/deliver-kit', { method: 'POST', body: JSON.stringify(data) }),
 };

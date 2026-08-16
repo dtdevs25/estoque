@@ -146,6 +146,50 @@ movementsRouter.post('/exit', requireAdminOrController, async (req: AuthRequest,
   }
 });
 
+// POST /api/movements/adjust (Ajuste de Estoque / Contagem Física)
+movementsRouter.post('/adjust', requireAdminOrController, async (req: AuthRequest, res) => {
+  try {
+    const { itemId, newQuantity, reason, notes } = req.body;
+    if (!itemId || newQuantity === undefined || newQuantity === null || newQuantity < 0) {
+      res.status(400).json({ message: 'Item e nova quantidade são obrigatórios.' });
+      return;
+    }
+
+    const item = await getOrCreateItemForLocation(itemId);
+    if (!item) { res.status(404).json({ message: 'Item não encontrado.' }); return; }
+
+    const location = await prisma.location.findUnique({ where: { id: item.locationId } });
+    const prev = item.quantity;
+    const targetQty = Number(newQuantity);
+    const diff = Math.abs(targetQty - prev);
+
+    const [updated, movement] = await prisma.$transaction([
+      prisma.epiItem.update({ where: { id: item.id }, data: { quantity: targetQty } }),
+      prisma.stockMovement.create({
+        data: {
+          type: 'AJUSTE',
+          quantity: diff,
+          previousQuantity: prev,
+          newQuantity: targetQty,
+          itemId: item.id,
+          itemName: item.name,
+          locationId: item.locationId,
+          locationName: location?.name || item.locationId,
+          reason: reason || `Ajuste de Estoque / Balanço (De: ${prev} para: ${targetQty})`,
+          notes,
+          userId: req.user!.id,
+        },
+      }),
+    ]);
+
+    await checkLowStock(item.id);
+    res.json({ item: updated, movement: { ...movement, timestamp: movement.createdAt.toISOString() } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: 'Erro ao registrar ajuste de estoque.' });
+  }
+});
+
 // POST /api/movements/batch
 movementsRouter.post('/batch', requireAdminOrController, async (req: AuthRequest, res) => {
   try {

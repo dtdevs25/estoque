@@ -36,7 +36,8 @@ export const MovementsView: React.FC = () => {
     registerBatchMovement,
     registerSingleMovement,
     currentUser,
-    transferStock
+    transferStock,
+    adjustStock
   } = useStock();
 
   const isViewer = currentUser?.role === 'VIEWER';
@@ -278,8 +279,12 @@ export const MovementsView: React.FC = () => {
 
   const handleSingleReasonChange = (newReason: string) => {
     setSingleReason(newReason);
-    const isEntrada = newReason.toLowerCase().includes('recebimento') || newReason.toLowerCase().includes('entrada');
-    setSingleType(isEntrada ? 'ENTRADA' : 'SAIDA');
+    if (newReason === 'Ajuste de Estoque / Contagem Física') {
+      setSingleType('AJUSTE' as any);
+    } else {
+      const isEntrada = newReason.toLowerCase().includes('recebimento') || newReason.toLowerCase().includes('entrada');
+      setSingleType(isEntrada ? 'ENTRADA' : 'SAIDA');
+    }
   };
 
   const selectedSingleItem = items.find(i => i.id === singleItemId);
@@ -291,6 +296,29 @@ export const MovementsView: React.FC = () => {
 
     if (!singleItemId) {
       setSingleErrorMsg('Selecione um EPI.');
+      return;
+    }
+
+    if (singleReason === 'Ajuste de Estoque / Contagem Física') {
+      if (singleQty < 0) {
+        setSingleErrorMsg('A nova quantidade não pode ser negativa.');
+        return;
+      }
+
+      const res = await adjustStock({
+        itemId: singleItemId,
+        newQuantity: singleQty,
+        reason: singleReason,
+        notes: singleNotes,
+      });
+
+      if (res.success) {
+        setSingleSuccessMsg(`Ajuste de estoque do item "${selectedSingleItem?.name}" registrado com sucesso! Novo saldo: ${singleQty} ${selectedSingleItem?.unit || 'un'}.`);
+        setSingleQty(1);
+        setSingleNotes('');
+      } else {
+        setSingleErrorMsg(res.error || 'Erro ao registrar ajuste de estoque.');
+      }
       return;
     }
 
@@ -876,27 +904,52 @@ export const MovementsView: React.FC = () => {
                 <label className="block text-slate-700 font-bold mb-1.5">Tipo</label>
                 <select
                   value={singleType}
-                  onChange={(e) => setSingleType(e.target.value as MovementType)}
+                  onChange={(e) => {
+                    const newT = e.target.value as any;
+                    setSingleType(newT);
+                    if (newT === 'AJUSTE') setSingleReason('Ajuste de Estoque / Contagem Física');
+                  }}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
                 >
                   <option value="SAIDA">Saída</option>
                   <option value="ENTRADA">Entrada</option>
+                  <option value="AJUSTE">Ajuste / Inventário Físico</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1.5">Quantidade ({selectedSingleItem?.unit || 'un'}) *</label>
+                <label className="block text-slate-700 font-bold mb-1.5">
+                  {singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any)
+                    ? `Nova Quantidade Apurada (${selectedSingleItem?.unit || 'un'}) *`
+                    : `Quantidade (${selectedSingleItem?.unit || 'un'}) *`}
+                </label>
                 <input
                   id="single-qty-input"
                   type="number"
-                  min="1"
+                  min="0"
                   value={singleQty}
-                  onChange={(e) => setSingleQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  onChange={(e) => setSingleQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
                   required
                 />
               </div>
             </div>
+
+            {/* Helper box for AJUSTE mode */}
+            {(singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any)) && selectedSingleItem && (
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-center justify-between font-medium">
+                <div>
+                  <span className="text-slate-600 block text-[11px]">Estoque Cadastrado no Sistema:</span>
+                  <strong className="text-slate-900 text-sm">{selectedSingleItem.quantity} {selectedSingleItem.unit || 'un'}</strong>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-600 block text-[11px]">Diferença de Inventário:</span>
+                  <strong className={`text-sm font-mono ${singleQty - selectedSingleItem.quantity >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {singleQty - selectedSingleItem.quantity >= 0 ? `+${singleQty - selectedSingleItem.quantity}` : `${singleQty - selectedSingleItem.quantity}`} {selectedSingleItem.unit || 'un'}
+                  </strong>
+                </div>
+              </div>
+            )}
 
             {/* Reason */}
             <div>
@@ -904,11 +957,12 @@ export const MovementsView: React.FC = () => {
               <select
                 value={singleReason}
                 onChange={(e) => handleSingleReasonChange(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none font-medium"
                 required
               >
                 <option value="Entregas aos Colaboradores">Entregas aos Colaboradores (Saída)</option>
                 <option value="Recebimento de material">Recebimento de material (Entrada)</option>
+                <option value="Ajuste de Estoque / Contagem Física">Ajuste de Estoque / Contagem Física (Balanço)</option>
                 <option value="Movimentação de estoque">Movimentação de estoque (Saída/Transferência)</option>
               </select>
             </div>
@@ -1040,13 +1094,16 @@ export const MovementsView: React.FC = () => {
                   <option value="ALL">Todos os Tipos</option>
                   <option value="SAIDA">Saídas / Entregas</option>
                   <option value="ENTRADA">Entradas / Compras</option>
+                  <option value="AJUSTE">Ajuste de Estoque / Inventário</option>
+                  <option value="TRANSFERENCIA_SAIDA">Transferências</option>
+                  <option value="ENTREGA_KIT">Entrega de Kits</option>
                 </select>
               </div>
 
               <div className="flex justify-end">
                 <button
                   onClick={handleExportCSV}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-purple-50 text-slate-700 hover:text-[#660099] border border-slate-200 rounded-lg text-xs font-bold transition-colors"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-purple-50 text-slate-700 hover:text-[#660099] border border-slate-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
                   Exportar CSV
@@ -1071,14 +1128,18 @@ export const MovementsView: React.FC = () => {
                       <th className="py-3.5 px-4">Tipo</th>
                       <th className="py-3.5 px-4">EPI & CA</th>
                       <th className="py-3.5 px-4">Almoxarifado</th>
-                      <th className="py-3.5 px-4 text-center">Quantidade</th>
-                      <th className="py-3.5 px-4 text-center">Saldo Restante</th>
-                      <th className="py-3.5 px-4">Motivo / Destinatário</th>
+                      <th className="py-3.5 px-4 text-center">Movimentado</th>
+                      <th className="py-3.5 px-4 text-center">Evolução do Saldo</th>
+                      <th className="py-3.5 px-4">Motivo / Detalhes</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredHistory.map(mov => {
                       const isOut = mov.type === 'SAIDA';
+                      const isAjuste = mov.type === 'AJUSTE';
+                      const prevStock = (mov as any).previousQuantity ?? mov.previousStock ?? '-';
+                      const currStock = (mov as any).newQuantity ?? mov.currentStock ?? '-';
+
                       const dateFormatted = new Date(mov.createdAt).toLocaleString('pt-BR', {
                         day: '2-digit',
                         month: '2-digit',
@@ -1089,7 +1150,7 @@ export const MovementsView: React.FC = () => {
 
                       return (
                         <tr key={mov.id} className="hover:bg-purple-50/30 transition-colors">
-                          <td className="py-3 px-4 font-mono text-slate-500 text-xs">
+                          <td className="py-3 px-4 font-mono text-slate-500 text-xs whitespace-nowrap">
                             {dateFormatted}
                           </td>
 
@@ -1097,29 +1158,32 @@ export const MovementsView: React.FC = () => {
                             <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
                               mov.type === 'SAIDA' ? 'bg-rose-100 text-rose-700' :
                               mov.type === 'ENTRADA' ? 'bg-purple-100 text-[#660099]' :
-                              'bg-amber-100 text-amber-800'
+                              mov.type === 'AJUSTE' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                              'bg-blue-100 text-blue-800'
                             }`}>
-                              {mov.type}
+                              {mov.type === 'AJUSTE' ? 'AJUSTE' : mov.type}
                             </span>
                           </td>
 
                           <td className="py-3 px-4">
                             <div className="font-bold text-slate-900">{mov.itemName}</div>
-                            <span className="text-[10px] text-slate-400 font-mono">CA: {mov.itemCa}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">CA: {mov.itemCa || 'N/A'}</span>
                           </td>
 
-                          <td className="py-3 px-4 text-slate-600 font-medium">
+                          <td className="py-3 px-4 text-slate-600 font-medium whitespace-nowrap">
                             {mov.locationName}
                           </td>
 
-                          <td className="py-3 px-4 text-center font-mono font-extrabold">
-                            <span className={isOut ? 'text-rose-600' : 'text-[#660099]'}>
-                              {isOut ? '-' : '+'}{mov.quantity}
+                          <td className="py-3 px-4 text-center font-mono font-extrabold whitespace-nowrap">
+                            <span className={isAjuste ? 'text-amber-800' : isOut ? 'text-rose-600' : 'text-[#660099]'}>
+                              {isAjuste ? `±${mov.quantity}` : isOut ? `-${mov.quantity}` : `+${mov.quantity}`}
                             </span>
                           </td>
 
-                          <td className="py-3 px-4 text-center font-mono text-slate-500">
-                            {mov.currentStock}
+                          <td className="py-3 px-4 text-center font-mono text-xs whitespace-nowrap">
+                            <span className="text-slate-500">{prevStock}</span>
+                            <span className="text-slate-400 mx-1">→</span>
+                            <strong className="text-slate-900 font-bold">{currStock}</strong>
                           </td>
 
                           <td className="py-3 px-4">

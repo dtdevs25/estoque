@@ -1,0 +1,160 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CONTROLLER
+  VIEWER
+}
+
+enum UserStatus {
+  ATIVO
+  INATIVO
+}
+
+enum ItemType {
+  EPI
+  EPC
+  ERGONOMICO
+}
+
+enum KitType {
+  EPI_EPC
+  ERGONOMICO
+}
+
+enum MovementType {
+  ENTRADA
+  SAIDA
+  TRANSFERENCIA_ENTRADA
+  TRANSFERENCIA_SAIDA
+  AJUSTE
+  ENTREGA_KIT
+  INICIAL
+}
+
+model User {
+  id          String     @id @default(uuid())
+  name        String
+  email       String     @unique
+  password    String
+  role        UserRole   @default(VIEWER)
+  locationIds String[]   @default([])
+  status      UserStatus @default(ATIVO)
+  department  String?
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  movements StockMovement[]
+
+  @@map("users")
+}
+
+model Location {
+  id                 String   @id @default(uuid())
+  name               String
+  code               String   @unique
+  address            String?
+  description        String?
+  responsibleName    String?
+  responsibleContact String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  items EpiItem[]
+
+  @@map("locations")
+}
+
+model EpiItem {
+  id                 String   @id @default(uuid())
+  name               String
+  type               ItemType @default(EPI)
+  caNumber           String?
+  caExpiry           String?
+  brand              String?
+  category           String
+  protectionCategory String?
+  unit               String   @default("UN")
+  quantity           Int      @default(0)
+  minQuantity        Int      @default(0)
+  imageUrl           String?
+  description        String?
+  locationId         String
+  location           Location @relation(fields: [locationId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  movements StockMovement[]
+
+  @@map("epi_items")
+}
+
+model EpiKit {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  type        KitType  @default(EPI_EPC)
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  components KitComponent[]
+
+  @@map("epi_kits")
+}
+
+model KitComponent {
+  id       String @id @default(uuid())
+  kitId    String
+  itemId   String
+  itemName String
+  quantity Int
+
+  kit EpiKit @relation(fields: [kitId], references: [id], onDelete: Cascade)
+
+  @@map("kit_components")
+}
+
+model StockMovement {
+  id                   String       @id @default(uuid())
+  type                 MovementType
+  quantity             Int
+  previousQuantity     Int
+  newQuantity          Int
+  itemId               String
+  itemName             String
+  locationId           String
+  locationName         String
+  employeeName         String?
+  employeeRole         String?
+  employeeRegistration String?
+  reason               String
+  notes                String?
+  userId               String?
+  user                 User?        @relation(fields: [userId], references: [id])
+  item                 EpiItem      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdAt            DateTime     @default(now())
+
+  @@map("stock_movements")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}

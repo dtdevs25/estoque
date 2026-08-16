@@ -333,9 +333,13 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // ── Kit Availability (computed locally) ───────────────────────────────────
 
   const findItemForComponent = (itemId: string, itemName: string, locationId: string): EpiItem | undefined => {
-    const direct = items.find(i => i.id === itemId && i.locationId === locationId);
+    if (!items || items.length === 0) return undefined;
+    const direct = items.find(i => i.id === itemId && (i.locationId === locationId || i.locationId === 'ALL'));
     if (direct) return direct;
-    return items.find(i => i.locationId === locationId && i.name.toLowerCase() === itemName.toLowerCase());
+    return items.find(
+      i => (i.locationId === locationId || i.locationId === 'ALL') &&
+           (i.name || '').trim().toLowerCase() === (itemName || '').trim().toLowerCase()
+    );
   };
 
   const getKitAvailabilityForLocation = (kitId: string, locationId: string): KitAvailability | null => {
@@ -343,25 +347,57 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const loc = locations.find(l => l.id === locationId);
     if (!kit || !loc) return null;
 
-    const limitingItems: KitLimitingItem[] = [];
     let maxCompleteKits = Infinity;
+    let limitingItem: KitLimitingItem | null = null;
 
-    for (const comp of kit.components) {
+    const componentDetails = (kit.components || []).map(comp => {
       const item = findItemForComponent(comp.itemId, comp.itemName, locationId);
       const available = item?.quantity || 0;
-      const canMake = comp.quantity > 0 ? Math.floor(available / comp.quantity) : Infinity;
-      if (canMake < maxCompleteKits) maxCompleteKits = canMake;
-      if (!item || available < comp.quantity) {
-        limitingItems.push({ itemId: comp.itemId, itemName: comp.itemName, available, required: comp.quantity });
+      const reqPerKit = comp.quantity || (comp as any).requiredQuantity || 1;
+      const maxKitsForThisItem = reqPerKit > 0 ? Math.floor(available / reqPerKit) : 0;
+
+      if (maxKitsForThisItem < maxCompleteKits) {
+        maxCompleteKits = maxKitsForThisItem;
       }
-    }
+
+      return {
+        itemId: comp.itemId || '',
+        itemName: comp.itemName || 'Item',
+        caNumber: item?.caNumber || 'N/A',
+        required: reqPerKit,
+        available,
+        maxKitsForThisItem,
+        isLimiting: false,
+        unit: comp.unit || item?.unit || 'un',
+      };
+    });
 
     if (maxCompleteKits === Infinity) maxCompleteKits = 0;
 
+    componentDetails.forEach(cd => {
+      if (cd.maxKitsForThisItem === maxCompleteKits) {
+        cd.isLimiting = true;
+        if (!limitingItem) {
+          limitingItem = {
+            itemId: cd.itemId,
+            itemName: cd.itemName,
+            caNumber: cd.caNumber,
+            availableStock: cd.available,
+            requiredPerKit: cd.required,
+            maxKitsPossible: cd.maxKitsForThisItem,
+          };
+        }
+      }
+    });
+
     return {
-      kitId, kitName: kit.name, locationId, locationName: loc.name,
-      maxCompleteKits, limitingItems,
-      canAssemble: limitingItems.length === 0 && maxCompleteKits > 0,
+      kitId,
+      kitName: kit.name,
+      locationId,
+      locationName: loc.name,
+      maxCompleteKits,
+      limitingItem,
+      componentDetails,
     };
   };
 

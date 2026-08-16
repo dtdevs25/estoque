@@ -23,8 +23,8 @@ COPY prisma ./prisma
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/server ./server
+COPY --from=builder /app/dist-server ./dist-server
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx server/index.ts"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist-server/index.js"]

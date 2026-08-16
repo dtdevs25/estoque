@@ -603,11 +603,8 @@ export const MovementsView: React.FC = () => {
               <div className="p-4 border-b border-purple-100 bg-[#FAF7FC] flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">
-                    Grade de Itens do Almoxarifado ({batchLocationItems.length} EPIs disponíveis)
+                    Itens Homologados ({batchLocationItems.length} disponíveis)
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Digite a quantidade movimentada na coluna correspondente. Deixe 0 para os itens não movimentados.
-                  </p>
                 </div>
 
                 {/* Filter & Search Bar */}
@@ -644,9 +641,11 @@ export const MovementsView: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleClearBatchForm}
-                    className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition-colors shrink-0"
+                    title="Limpar formulário"
+                    aria-label="Limpar formulário"
+                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition-colors shrink-0 cursor-pointer"
                   >
-                    Limpar Grade
+                    <RotateCcw className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -767,9 +766,11 @@ export const MovementsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleClearBatchForm}
-                  className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                  title="Limpar formulário"
+                  aria-label="Limpar formulário"
+                  className="p-3 text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-xl transition-all active:scale-95 cursor-pointer"
                 >
-                  Limpar
+                  <RotateCcw className="w-5 h-5" />
                 </button>
 
                 <button

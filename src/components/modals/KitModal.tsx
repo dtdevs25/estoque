@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Layers, Plus, Trash2, ShieldCheck, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Layers, Plus, Trash2 } from 'lucide-react';
 import { useStock } from '../../context/StockContext';
 import { EpiKit, KitComponent } from '../../types';
 
@@ -10,7 +10,7 @@ interface KitModalProps {
 }
 
 export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }) => {
-  const { items, addKit, updateKit } = useStock();
+  const { displayItems, items, addKit, updateKit } = useStock();
 
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -18,66 +18,89 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
   const [type, setType] = useState<'EPI_EPC' | 'ERGONOMICO'>('EPI_EPC');
   const [description, setDescription] = useState('');
   const [components, setComponents] = useState<KitComponent[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Unique list of item templates (distinct by name or CA)
-  const uniqueItemOptions = React.useMemo(() => {
+  // Available item list from homologated catalog
+  const catalogSource = displayItems.length > 0 ? displayItems : items;
+
+  const uniqueItemOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string; caNumber: string; unit: string }>();
-    items.forEach(i => {
+    catalogSource.forEach(i => {
+      if (!i || !i.name) return;
       const isErgonomico = i.type === 'ERGONOMICO';
       const matchesType = type === 'ERGONOMICO' ? isErgonomico : !isErgonomico;
 
-      if (matchesType && !map.has(i.name)) {
-        map.set(i.name, {
+      const key = i.name.trim().toLowerCase();
+      if (matchesType && !map.has(key)) {
+        map.set(key, {
           id: i.id,
-          name: i.name,
-          caNumber: i.caNumber,
-          unit: i.unit,
+          name: i.name.trim(),
+          caNumber: i.caNumber || '',
+          unit: i.unit || 'un',
         });
       }
     });
     return Array.from(map.values());
-  }, [items, type]);
+  }, [catalogSource, type]);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     if (kitToEdit) {
-      setName(kitToEdit.name);
-      setCode(kitToEdit.code);
+      setName(kitToEdit.name || '');
+      setCode(kitToEdit.code || '');
       setCategory(kitToEdit.category || 'Telecom & Fibra');
       setType(kitToEdit.type || 'EPI_EPC');
-      setDescription(kitToEdit.description);
-      setComponents(kitToEdit.components);
+      setDescription(kitToEdit.description || '');
+      setComponents(
+        (kitToEdit.components || []).map(c => ({
+          itemId: c.itemId || '',
+          itemName: c.itemName || '',
+          requiredQuantity: c.requiredQuantity || (c as any).quantity || 1,
+          unit: c.unit || 'un',
+        }))
+      );
     } else {
       setName('');
       setCode('KIT-VIV-' + Math.floor(100 + Math.random() * 900));
       setCategory('Telecom & Fibra');
       setType('EPI_EPC');
       setDescription('');
+      
       if (uniqueItemOptions.length >= 2) {
         setComponents([
           {
-            itemId: uniqueItemOptions[0]?.id || '',
-            itemName: uniqueItemOptions[0]?.name || '',
+            itemId: uniqueItemOptions[0].id,
+            itemName: uniqueItemOptions[0].name,
             requiredQuantity: 1,
-            unit: uniqueItemOptions[0]?.unit || 'un',
+            unit: uniqueItemOptions[0].unit,
           },
           {
-            itemId: uniqueItemOptions[1]?.id || '',
-            itemName: uniqueItemOptions[1]?.name || '',
+            itemId: uniqueItemOptions[1].id,
+            itemName: uniqueItemOptions[1].name,
             requiredQuantity: 1,
-            unit: uniqueItemOptions[1]?.unit || 'un',
+            unit: uniqueItemOptions[1].unit,
+          }
+        ]);
+      } else if (uniqueItemOptions.length === 1) {
+        setComponents([
+          {
+            itemId: uniqueItemOptions[0].id,
+            itemName: uniqueItemOptions[0].name,
+            requiredQuantity: 1,
+            unit: uniqueItemOptions[0].unit,
           }
         ]);
       } else {
         setComponents([]);
       }
     }
-  }, [kitToEdit, isOpen, uniqueItemOptions]);
+  }, [isOpen, kitToEdit]);
 
   if (!isOpen) return null;
 
   const handleAddComponent = () => {
-    if (uniqueItemOptions.length === 0) return;
-    const defaultOpt = uniqueItemOptions[0];
+    const defaultOpt = uniqueItemOptions[0] || { id: 'custom', name: 'Novo Item', unit: 'un' };
     setComponents(prev => [
       ...prev,
       {
@@ -93,17 +116,16 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
     setComponents(prev => prev.filter((_, idx) => idx !== index));
   };
 
-  const handleComponentItemChange = (index: number, itemId: string) => {
-    const selected = uniqueItemOptions.find(opt => opt.id === itemId);
-    if (!selected) return;
-
+  const handleComponentItemChange = (index: number, selectedName: string) => {
+    const selected = uniqueItemOptions.find(opt => opt.name === selectedName || opt.id === selectedName);
+    
     setComponents(prev => prev.map((comp, idx) => {
       if (idx === index) {
         return {
           ...comp,
-          itemId: selected.id,
-          itemName: selected.name,
-          unit: selected.unit,
+          itemId: selected ? selected.id : comp.itemId,
+          itemName: selected ? selected.name : selectedName,
+          unit: selected ? selected.unit : comp.unit,
         };
       }
       return comp;
@@ -111,7 +133,7 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
   };
 
   const handleComponentQtyChange = (index: number, qty: number) => {
-    const validQty = Math.max(1, qty);
+    const validQty = Math.max(1, qty || 1);
     setComponents(prev => prev.map((comp, idx) => {
       if (idx === index) {
         return { ...comp, requiredQuantity: validQty };
@@ -119,8 +141,6 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
       return comp;
     }));
   };
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,19 +156,24 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
 
     setIsSubmitting(true);
     try {
+      const formattedComponents = components.map(c => {
+        const qty = Math.max(1, parseInt(String(c.requiredQuantity || (c as any).quantity || 1), 10) || 1);
+        return {
+          itemId: c.itemId || 'item-ref',
+          itemName: c.itemName || 'Item Sem Nome',
+          quantity: qty,
+          requiredQuantity: qty,
+          unit: c.unit || 'un',
+        };
+      });
+
       const payload = {
         name: name.trim(),
         code: code.trim().toUpperCase() || 'KIT-VIV-' + Math.floor(100 + Math.random() * 900),
         category: category.trim(),
         type,
         description: description.trim(),
-        components: components.map(c => ({
-          itemId: c.itemId,
-          itemName: c.itemName,
-          quantity: c.requiredQuantity || c.quantity || 1,
-          requiredQuantity: c.requiredQuantity || c.quantity || 1,
-          unit: c.unit || 'un',
-        })),
+        components: formattedComponents,
       };
 
       if (kitToEdit) {
@@ -159,6 +184,7 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
 
       onClose();
     } catch (err: any) {
+      console.error('Error saving kit:', err);
       alert(err?.message || 'Erro ao salvar Kit.');
     } finally {
       setIsSubmitting(false);
@@ -171,10 +197,14 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
         
         {/* Header */}
         <div className="p-5 border-b border-purple-900 bg-[#660099] flex items-center justify-between shrink-0">
-          <h3 className="font-bold text-white text-lg tracking-tight">
-            {kitToEdit ? 'Editar Composição do Kit Vivo' : 'Criar Nova Composição de Kit Vivo'}
-          </h3>
+          <div className="flex items-center gap-2">
+            <Layers className="w-5 h-5 text-white" />
+            <h3 className="font-bold text-white text-lg tracking-tight">
+              {kitToEdit ? 'Editar Composição do Kit' : 'Novo Kit de EPIs / Equipamentos'}
+            </h3>
+          </div>
           <button 
+            type="button"
             onClick={onClose} 
             className="p-1.5 rounded-lg text-purple-200 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
@@ -192,7 +222,7 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
                 value={type}
                 onChange={(e) => {
                   setType(e.target.value as any);
-                  setComponents([]); // reset components when type changes
+                  setComponents([]);
                 }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099] focus:bg-white text-slate-900 font-medium"
               >
@@ -278,17 +308,27 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
                     
                     {/* Item Selector */}
                     <div className="flex-1 min-w-0">
-                      <select
-                        value={comp.itemId}
-                        onChange={(e) => handleComponentItemChange(idx, e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium truncate focus:ring-2 focus:ring-[#660099]"
-                      >
-                        {uniqueItemOptions.map(opt => (
-                          <option key={opt.id} value={opt.id}>
-                            {opt.name} ({opt.caNumber})
-                          </option>
-                        ))}
-                      </select>
+                      {uniqueItemOptions.length > 0 ? (
+                        <select
+                          value={comp.itemName}
+                          onChange={(e) => handleComponentItemChange(idx, e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium truncate focus:ring-2 focus:ring-[#660099]"
+                        >
+                          {uniqueItemOptions.map((opt, i) => (
+                            <option key={opt.id || i} value={opt.name}>
+                              {opt.name} {opt.caNumber ? `(CA ${opt.caNumber})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={comp.itemName}
+                          onChange={(e) => handleComponentItemChange(idx, e.target.value)}
+                          placeholder="Nome do EPI"
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium"
+                        />
+                      )}
                     </div>
 
                     {/* Quantity Needed */}
@@ -297,11 +337,11 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
                       <input
                         type="number"
                         min="1"
-                        value={comp.requiredQuantity}
+                        value={comp.requiredQuantity || (comp as any).quantity || 1}
                         onChange={(e) => handleComponentQtyChange(idx, parseInt(e.target.value, 10) || 1)}
                         className="w-16 px-2 py-1 bg-white border border-slate-200 rounded-lg text-center font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#660099]"
                       />
-                      <span className="text-slate-500 text-xs">{comp.unit}</span>
+                      <span className="text-slate-500 text-xs">{comp.unit || 'un'}</span>
                     </div>
 
                     {/* Remove button */}
@@ -332,9 +372,10 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-[#660099] hover:bg-[#52007a] text-white rounded-xl font-bold shadow-sm shadow-purple-950/20 transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className="px-6 py-2 bg-[#660099] hover:bg-[#52007a] disabled:opacity-60 text-white rounded-xl font-bold shadow-sm shadow-purple-950/20 transition-all cursor-pointer"
             >
-              {kitToEdit ? 'Salvar Kit' : 'Criar Kit de EPI'}
+              {isSubmitting ? 'Salvando Kit...' : (kitToEdit ? 'Salvar Kit' : 'Criar Kit de EPI')}
             </button>
           </div>
 

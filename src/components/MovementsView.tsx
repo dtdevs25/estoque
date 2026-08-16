@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ClipboardList, 
   Zap, 
@@ -39,13 +39,12 @@ export const MovementsView: React.FC = () => {
     transferStock
   } = useStock();
 
-
   const isViewer = currentUser?.role === 'VIEWER';
   const [activeSubTab, setActiveSubTab] = useState<'batch' | 'single' | 'history'>(isViewer ? 'history' : 'batch');
 
   // ---- State for Batch / Daily Closing Mode ----
   const [batchLocationId, setBatchLocationId] = useState<string>(() => selectedLocationId);
-  const [batchCategoryFilter, setBatchCategoryFilter] = useState<'ALL' | 'EPI_EPC' | 'ERGONOMICO'>('ALL');
+  const [batchCategoryFilter, setBatchCategoryFilter] = useState<'EPI_EPC' | 'ERGONOMICO'>('EPI_EPC');
   const [batchSearchQuery, setBatchSearchQuery] = useState<string>('');
   const [batchDate, setBatchDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [batchReason, setBatchReason] = useState('Entregas aos Colaboradores');
@@ -56,6 +55,21 @@ export const MovementsView: React.FC = () => {
   const [batchEntries, setBatchEntries] = useState<Record<string, BatchEntryItem>>({});
   const [batchSuccessMsg, setBatchSuccessMsg] = useState<string | null>(null);
   const [batchErrorMsg, setBatchErrorMsg] = useState<string | null>(null);
+
+  // Auto-dismiss notification messages after 5 seconds
+  useEffect(() => {
+    if (batchErrorMsg) {
+      const timer = setTimeout(() => setBatchErrorMsg(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [batchErrorMsg]);
+
+  useEffect(() => {
+    if (batchSuccessMsg) {
+      const timer = setTimeout(() => setBatchSuccessMsg(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [batchSuccessMsg]);;
 
   // Items for batch location & category filter
   const batchLocationItems = useMemo(() => {
@@ -68,7 +82,7 @@ export const MovementsView: React.FC = () => {
       let matchCat = true;
       if (batchCategoryFilter === 'ERGONOMICO') {
         matchCat = i.type === 'ERGONOMICO' || (i.category || '').toLowerCase().includes('ergonômic') || (i.category || '').toLowerCase().includes('ergonomic');
-      } else if (batchCategoryFilter === 'EPI_EPC') {
+      } else {
         matchCat = i.type !== 'ERGONOMICO' && !(i.category || '').toLowerCase().includes('ergonômic') && !(i.category || '').toLowerCase().includes('ergonomic');
       }
 
@@ -143,7 +157,7 @@ export const MovementsView: React.FC = () => {
   const activeBatchCount = (Object.values(batchEntries) as BatchEntryItem[]).filter(e => e.qty > 0).length;
   const activeBatchTotalUnits = (Object.values(batchEntries) as BatchEntryItem[]).reduce((acc, curr) => acc + (curr.qty > 0 ? curr.qty : 0), 0);
 
-  const handleSubmitBatch = (e: React.FormEvent) => {
+  const handleSubmitBatch = async (e: React.FormEvent) => {
     e.preventDefault();
     setBatchErrorMsg(null);
     setBatchSuccessMsg(null);
@@ -184,7 +198,7 @@ export const MovementsView: React.FC = () => {
       let count = 0;
       for (const entry of validEntries) {
         if (entry.type === 'SAIDA' && entry.quantity > 0) {
-          transferStock({
+          await transferStock({
             itemId: entry.itemId,
             toLocationId: batchDestinationLocationId,
             quantity: entry.quantity,
@@ -200,7 +214,7 @@ export const MovementsView: React.FC = () => {
       return;
     }
 
-    const res = registerBatchMovement({
+    const res = await registerBatchMovement({
       locationId: batchLocationId,
       entries: validEntries,
       reason: batchReason,
@@ -222,7 +236,7 @@ export const MovementsView: React.FC = () => {
   // ---- State for Single / Unitary Mode ----
   const [singleItemId, setSingleItemId] = useState<string>(() => items[0]?.id || '');
   const [singleLocFilter, setSingleLocFilter] = useState<string>('ALL');
-  const [singleCategoryFilter, setSingleCategoryFilter] = useState<'ALL' | 'EPI_EPC' | 'ERGONOMICO'>('ALL');
+  const [singleCategoryFilter, setSingleCategoryFilter] = useState<'EPI_EPC' | 'ERGONOMICO'>('EPI_EPC');
   const [singleType, setSingleType] = useState<MovementType>('SAIDA');
   const [singleQty, setSingleQty] = useState<number>(1);
   const [singleReason, setSingleReason] = useState<string>('Entregas aos Colaboradores');
@@ -234,6 +248,20 @@ export const MovementsView: React.FC = () => {
   const [singleSuccessMsg, setSingleSuccessMsg] = useState<string | null>(null);
   const [singleErrorMsg, setSingleErrorMsg] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (singleErrorMsg) {
+      const timer = setTimeout(() => setSingleErrorMsg(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [singleErrorMsg]);
+
+  useEffect(() => {
+    if (singleSuccessMsg) {
+      const timer = setTimeout(() => setSingleSuccessMsg(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [singleSuccessMsg]);
+
   const filteredSingleItems = useMemo(() => {
     return (items || []).filter(i => {
       if (!i) return false;
@@ -241,7 +269,7 @@ export const MovementsView: React.FC = () => {
       let matchCat = true;
       if (singleCategoryFilter === 'ERGONOMICO') {
         matchCat = i.type === 'ERGONOMICO' || (i.category || '').toLowerCase().includes('ergonômic') || (i.category || '').toLowerCase().includes('ergonomic');
-      } else if (singleCategoryFilter === 'EPI_EPC') {
+      } else {
         matchCat = i.type !== 'ERGONOMICO' && !(i.category || '').toLowerCase().includes('ergonômic') && !(i.category || '').toLowerCase().includes('ergonomic');
       }
       return matchLoc && matchCat;
@@ -256,7 +284,7 @@ export const MovementsView: React.FC = () => {
 
   const selectedSingleItem = items.find(i => i.id === singleItemId);
 
-  const handleSubmitSingle = (e: React.FormEvent) => {
+  const handleSubmitSingle = async (e: React.FormEvent) => {
     e.preventDefault();
     setSingleErrorMsg(null);
     setSingleSuccessMsg(null);
@@ -277,7 +305,7 @@ export const MovementsView: React.FC = () => {
         return;
       }
       
-      const res = transferStock({
+      const res = await transferStock({
         itemId: singleItemId,
         toLocationId: singleDestinationLocationId,
         quantity: singleQty,
@@ -289,14 +317,13 @@ export const MovementsView: React.FC = () => {
         setSingleSuccessMsg(`Item transferido com sucesso para o novo almoxarifado.`);
         setSingleQty(1);
         setSingleNotes('');
-        setTimeout(() => setSingleSuccessMsg(null), 5000);
       } else {
         setSingleErrorMsg(res.error || 'Erro ao registrar transferência.');
       }
       return;
     }
 
-    const res = registerSingleMovement({
+    const res = await registerSingleMovement({
       itemId: singleItemId,
       type: singleType,
       quantity: singleQty,
@@ -311,7 +338,6 @@ export const MovementsView: React.FC = () => {
       setSingleSuccessMsg(`Movimentação de ${singleQty} ${selectedSingleItem?.unit || 'un'} registrada com sucesso!`);
       setSingleQty(1);
       setSingleNotes('');
-      setTimeout(() => setSingleSuccessMsg(null), 5000);
     } else {
       setSingleErrorMsg(res.error || 'Erro ao registrar movimentação.');
     }
@@ -612,18 +638,9 @@ export const MovementsView: React.FC = () => {
                   <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold">
                     <button
                       type="button"
-                      onClick={() => setBatchCategoryFilter('ALL')}
-                      className={`px-2.5 py-1 rounded-md transition-colors ${
-                        batchCategoryFilter === 'ALL' ? 'bg-white text-[#660099] shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      Todos
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => setBatchCategoryFilter('EPI_EPC')}
                       className={`px-2.5 py-1 rounded-md transition-colors ${
-                        batchCategoryFilter === 'EPI_EPC' ? 'bg-white text-[#660099] shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                        batchCategoryFilter === 'EPI_EPC' ? 'bg-white text-[#660099] shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       EPI / EPC
@@ -632,7 +649,7 @@ export const MovementsView: React.FC = () => {
                       type="button"
                       onClick={() => setBatchCategoryFilter('ERGONOMICO')}
                       className={`px-2.5 py-1 rounded-md transition-colors ${
-                        batchCategoryFilter === 'ERGONOMICO' ? 'bg-white text-[#660099] shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                        batchCategoryFilter === 'ERGONOMICO' ? 'bg-white text-[#660099] shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       Ergonômicos
@@ -844,7 +861,6 @@ export const MovementsView: React.FC = () => {
                   onChange={(e) => setSingleCategoryFilter(e.target.value as any)}
                   className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
                 >
-                  <option value="ALL">Todas as Categorias</option>
                   <option value="EPI_EPC">EPI / EPC</option>
                   <option value="ERGONOMICO">Ergonômicos</option>
                 </select>

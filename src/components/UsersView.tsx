@@ -18,11 +18,14 @@ import {
   AlertCircle,
   Info,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  KeyRound,
+  Loader2
 } from 'lucide-react';
 import { useStock } from '../context/StockContext';
 import { AppUser, UserRole } from '../types';
 import { ConfirmDeleteModal } from './modals/ConfirmDeleteModal';
+import { users as usersApi } from '../services/api';
 
 interface UsersViewProps {
   onOpenNewUser: () => void;
@@ -47,6 +50,19 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+
+  const handleResendPassword = async (user: AppUser) => {
+    setResendingId(user.id);
+    try {
+      await usersApi.resendPassword(user.id);
+      alert(`E-mail com botão para redefinição de senha foi enviado com sucesso para ${user.email}!`);
+    } catch (e: any) {
+      alert(`Erro ao enviar e-mail: ${e.message || 'Falha na requisição'}`);
+    } finally {
+      setResendingId(null);
+    }
+  };
 
   // Filtered Users List
   const filteredUsers = useMemo(() => {
@@ -170,76 +186,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
         </div>
       </div>
 
-      {/* Role Guide Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
-        {/* Card Admin */}
-        <div className="bg-white p-4 rounded-2xl border border-purple-200 shadow-xs flex flex-col justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-[#660099] text-white">
-                <Shield className="w-3.5 h-3.5" />
-                Administrador do Sistema
-              </span>
-              <span className="text-xs font-bold text-purple-900">
-                {users.filter(u => u.role === 'ADMIN').length} usuário(s)
-              </span>
-            </div>
-            <p className="text-xs text-slate-600">
-              Controle global irrestrito: cadastra usuários, cria almoxarifados, configura kits, executa inventários e exporta dados.
-            </p>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-purple-50 text-[11px] text-[#660099] font-bold flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Visão Global • Todos os Almoxarifados
-          </div>
-        </div>
 
-        {/* Card Controller */}
-        <div className="bg-white p-4 rounded-2xl border border-blue-200 shadow-xs flex flex-col justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-blue-600 text-white">
-                <Box className="w-3.5 h-3.5" />
-                Controlador de Estoque
-              </span>
-              <span className="text-xs font-bold text-blue-900">
-                {users.filter(u => u.role === 'CONTROLLER').length} usuário(s)
-              </span>
-            </div>
-            <p className="text-xs text-slate-600">
-              Gerencia o estoque local: registra entradas, saídas, baixas em lote, transferências e ajustes do almoxarifado vinculado.
-            </p>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-blue-50 text-[11px] text-blue-700 font-bold flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Operação Total no Estoque Vinculado
-          </div>
-        </div>
-
-        {/* Card Viewer */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-300 shadow-xs flex flex-col justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-slate-700 text-white">
-                <Eye className="w-3.5 h-3.5" />
-                Visualizador
-              </span>
-              <span className="text-xs font-bold text-slate-800">
-                {users.filter(u => u.role === 'VIEWER').length} usuário(s)
-              </span>
-            </div>
-            <p className="text-xs text-slate-600">
-              Somente leitura: consulta níveis de estoque, saldos de EPIs, histórico de movimentações e cálculo de gargalo de kits.
-            </p>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] text-slate-600 font-bold flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Modo Consulta • Sem Permissão de Edição
-          </div>
-        </div>
-
-      </div>
 
       {/* Interactive Active User Switcher Bar */}
       <div className="bg-gradient-to-r from-purple-900 to-indigo-950 text-white p-4 sm:p-5 rounded-2xl shadow-md border border-purple-800">
@@ -440,15 +387,19 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         
-                        {/* Switch button */}
-                        {!isCurrent && (
+                        {/* Reset Password Email Button */}
+                        {(isCurrentUserAdmin || currentUser?.role === 'CONTROLLER') && (
                           <button
-                            onClick={() => setCurrentUserId(user.id)}
-                            title="Alternar sessão para este usuário"
-                            className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-[#660099] bg-purple-50 hover:bg-purple-100 transition-colors flex items-center gap-1 cursor-pointer"
+                            onClick={() => handleResendPassword(user)}
+                            disabled={resendingId === user.id}
+                            title={`Enviar e-mail de redefinição de senha para ${user.email}`}
+                            className="p-2 rounded-lg text-purple-700 bg-purple-50 hover:bg-purple-100 hover:text-[#660099] transition-colors disabled:opacity-50 cursor-pointer"
                           >
-                            <UserCheck className="w-3.5 h-3.5" />
-                            <span>Entrar</span>
+                            {resendingId === user.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <KeyRound className="w-4 h-4" />
+                            )}
                           </button>
                         )}
 
@@ -457,7 +408,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
                           <button
                             onClick={() => onOpenEditUser(user)}
                             title="Editar usuário"
-                            className="p-1.5 rounded-lg text-slate-600 hover:text-[#660099] hover:bg-purple-50 transition-colors cursor-pointer"
+                            className="p-2 rounded-lg text-slate-600 hover:text-[#660099] hover:bg-purple-50 transition-colors cursor-pointer"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
@@ -468,7 +419,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
                           <button
                             onClick={() => handleDelete(user)}
                             title="Excluir usuário"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

@@ -66,40 +66,126 @@ var transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS
   }
 });
+function getBaseEmailHtml(title, subtitle, contentHtml, ctaUrl, ctaText) {
+  return `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F4F1F8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#F4F1F8;padding:40px 10px;">
+    <tr>
+      <td align="center">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:580px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px rgba(102,0,153,0.08);border:1px solid #E9E1F0;">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="background:linear-gradient(135deg, #4B0072 0%, #660099 60%, #8800CC 100%);padding:36px 32px;text-align:center;">
+              <div style="display:inline-block;background:rgba(255,255,255,0.15);padding:6px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.25);margin-bottom:14px;">
+                <span style="color:#ffffff;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">EstoqueEPI Vivo</span>
+              </div>
+              <h1 style="color:#ffffff;font-size:24px;font-weight:800;margin:0 0 8px 0;letter-spacing:-0.5px;">${title}</h1>
+              <p style="color:#E9D5FF;font-size:14px;margin:0;font-weight:400;">${subtitle}</p>
+            </td>
+          </tr>
+
+          <!-- Body Content -->
+          <tr>
+            <td style="padding:36px 32px;">
+              ${contentHtml}
+
+              <!-- CTA Button Container -->
+              <div style="text-align:center;margin:32px 0;">
+                <a href="${ctaUrl}" target="_blank" style="display:inline-block;background:linear-gradient(135deg, #660099 0%, #4B0072 100%);color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 32px;border-radius:12px;box-shadow:0 4px 14px rgba(102,0,153,0.35);">
+                  ${ctaText} \u2192
+                </a>
+              </div>
+
+              <!-- Security Notice -->
+              <div style="background-color:#FAF7FC;border:1px solid #E9E1F0;border-radius:12px;padding:16px 20px;margin-top:28px;">
+                <p style="margin:0 0 6px 0;font-size:12px;font-weight:700;color:#660099;">\u{1F512} Informa\xE7\xE3o de Seguran\xE7a</p>
+                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5;">
+                  Este link \xE9 individual e seguro. Por motivos de seguran\xE7a, ele expira automaticamente. Se voc\xEA n\xE3o solicitou este e-mail, nenhuma a\xE7\xE3o \xE9 necess\xE1ria.
+                </p>
+              </div>
+
+              <!-- URL Fallback -->
+              <div style="margin-top:24px;padding-top:20px;border-top:1px solid #F1F5F9;font-size:11px;color:#94a3b8;word-break:break-all;">
+                Se o bot\xE3o acima n\xE3o funcionar, copie e cole o seguinte link no seu navegador:<br>
+                <a href="${ctaUrl}" style="color:#660099;text-decoration:underline;">${ctaUrl}</a>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#FAF7FC;padding:20px 32px;border-top:1px solid #E9E1F0;text-align:center;">
+              <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.6;">
+                <strong>EstoqueEPI Vivo</strong> \u2014 Controle de Equipamentos de Prote\xE7\xE3o<br>
+                Mensagem gerada automaticamente pelo sistema. Por favor, n\xE3o responda a este e-mail.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
 async function sendPasswordSetupEmail(to, name, token) {
-  const url = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
+  const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+  const url = `${baseUrl}/reset-password?token=${token}`;
+  const content = `
+    <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin:0 0 12px 0;">Ol\xE1, ${name}! \u{1F44B}</h2>
+    <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 20px 0;">
+      Seu acesso \xE0 plataforma <strong>EstoqueEPI Vivo</strong> foi criado com sucesso pelo administrador do sistema.
+    </p>
+    <div style="background-color:#F8FAFC;border-left:4px solid #660099;padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:20px;">
+      <p style="margin:0;font-size:13px;color:#334155;line-height:1.5;">
+        <strong>Conta:</strong> ${to}<br>
+        <strong>Validade do Link:</strong> 24 horas
+      </p>
+    </div>
+    <p style="font-size:14px;color:#475569;line-height:1.6;margin:0;">
+      Para come\xE7ar a utilizar o sistema, clique no bot\xE3o abaixo para definir sua senha de acesso pessoal:
+    </p>
+  `;
   await transporter.sendMail({
-    from: `"EstoqueEPI" <${process.env.SMTP_USER}>`,
+    from: `"EstoqueEPI Vivo" <${process.env.SMTP_USER}>`,
     to,
-    subject: "Bem-vindo ao EstoqueEPI \u2014 Configure sua senha",
-    html: `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px;">
-        <h2 style="color:#660099;">Bem-vindo, ${name}!</h2>
-        <p>Seu acesso ao <strong>EstoqueEPI</strong> foi criado. Clique no bot\xE3o abaixo para definir sua senha:</p>
-        <a href="${url}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#660099;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">
-          Definir Minha Senha
-        </a>
-        <p style="color:#6b7280;font-size:12px;">Este link expira em 24 horas. Se n\xE3o solicitou este acesso, ignore este e-mail.</p>
-      </div>
-    `
+    subject: "\u{1F389} Bem-vindo ao EstoqueEPI Vivo \u2014 Configure sua senha de acesso",
+    html: getBaseEmailHtml("Defini\xE7\xE3o de Senha", "Seu acesso ao EstoqueEPI foi criado", content, url, "Definir Minha Senha")
   });
 }
 async function sendPasswordResetEmail(to, name, token) {
-  const url = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
+  const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+  const url = `${baseUrl}/reset-password?token=${token}`;
+  const content = `
+    <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin:0 0 12px 0;">Ol\xE1, ${name}! \u{1F44B}</h2>
+    <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 20px 0;">
+      Recebemos uma solicita\xE7\xE3o de redefini\xE7\xE3o de senha para sua conta no <strong>EstoqueEPI Vivo</strong>.
+    </p>
+    <div style="background-color:#F8FAFC;border-left:4px solid #660099;padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:20px;">
+      <p style="margin:0;font-size:13px;color:#334155;line-height:1.5;">
+        <strong>Conta:</strong> ${to}<br>
+        <strong>Validade do Link:</strong> 1 hora
+      </p>
+    </div>
+    <p style="font-size:14px;color:#475569;line-height:1.6;margin:0;">
+      Clique no bot\xE3o abaixo para escolher uma nova senha de acesso com total seguran\xE7a:
+    </p>
+  `;
   await transporter.sendMail({
-    from: `"EstoqueEPI" <${process.env.SMTP_USER}>`,
+    from: `"EstoqueEPI Vivo" <${process.env.SMTP_USER}>`,
     to,
-    subject: "Redefini\xE7\xE3o de senha \u2014 EstoqueEPI",
-    html: `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px;">
-        <h2 style="color:#660099;">Redefini\xE7\xE3o de Senha</h2>
-        <p>Ol\xE1, <strong>${name}</strong>! Recebemos uma solicita\xE7\xE3o de redefini\xE7\xE3o de senha.</p>
-        <a href="${url}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#660099;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">
-          Redefinir Senha
-        </a>
-        <p style="color:#6b7280;font-size:12px;">Este link expira em 1 hora. Se n\xE3o solicitou isso, ignore este e-mail.</p>
-      </div>
-    `
+    subject: "\u{1F510} Redefini\xE7\xE3o de Senha \u2014 EstoqueEPI Vivo",
+    html: getBaseEmailHtml("Redefini\xE7\xE3o de Senha", "Solicita\xE7\xE3o de nova senha de acesso", content, url, "Redefinir Senha")
   });
 }
 async function sendLowStockAlert(itemName, locationName, quantity, minQuantity) {

@@ -10,7 +10,7 @@ interface KitModalProps {
 }
 
 export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }) => {
-  const { displayItems, items, addKit, updateKit } = useStock();
+  const { items, addKit, updateKit } = useStock();
 
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -21,7 +21,7 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Available item list from homologated catalog
-  const catalogSource = displayItems.length > 0 ? displayItems : items;
+  const catalogSource = Array.isArray(items) ? items : [];
 
   const uniqueItemOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string; caNumber: string; unit: string }>();

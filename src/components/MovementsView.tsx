@@ -459,26 +459,12 @@ export const MovementsView: React.FC = () => {
       {activeSubTab === 'batch' && (
         <div className="space-y-5">
           
-          {/* Information & Instructions Banner */}
-          <div className="bg-gradient-to-r from-[#4B0072] to-[#660099] text-white rounded-2xl p-5 border border-purple-900 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-xl bg-white/10 border border-white/20 text-purple-200 shrink-0">
-                <Zap className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-bold text-base text-white">Lançamento Rápido em Lote</h3>
-                <p className="text-xs text-purple-100 mt-0.5 leading-relaxed">
-                  Ideal para registrar de forma rápida e simultânea todas as movimentações e entregas 
-                  (ex: 15 pares de botas, 20 pares de luvas, 30 protetores auriculares) em uma única tela.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 shrink-0 bg-black/25 px-4 py-2 rounded-xl border border-white/15">
-              <span className="text-xs text-purple-200">Total a Lançar:</span>
-              <strong className="text-lg font-mono text-white">
-                {activeBatchTotalUnits} itens ({activeBatchCount} EPIs)
-              </strong>
+          {/* Summary Stat Indicator */}
+          <div className="bg-gradient-to-r from-[#4B0072] to-[#660099] text-white rounded-2xl px-5 py-3.5 border border-purple-900 shadow-xs flex items-center justify-between gap-4">
+            <span className="text-xs font-semibold text-purple-100">Total Selecionado para Lançamento:</span>
+            <div className="flex items-center gap-2 bg-black/25 px-4 py-1.5 rounded-xl border border-white/15 font-mono font-bold text-white text-base">
+              <span>{activeBatchTotalUnits} itens</span>
+              <span className="text-purple-300 font-sans text-xs font-normal">({activeBatchCount} EPIs)</span>
             </div>
           </div>
 
@@ -496,7 +482,7 @@ export const MovementsView: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmitBatch} className="space-y-5">
+          <form onSubmit={handleSubmitBatch} className="space-y-5 pb-24">
             
             {/* Header Configuration Box */}
             <div className="bg-white rounded-2xl border border-purple-100 p-5 shadow-xs space-y-4">
@@ -778,8 +764,8 @@ export const MovementsView: React.FC = () => {
                 </div>
               )}
 
-              {/* Sticky Submit Action Bar */}
-              <div className="sticky bottom-4 z-40 bg-white/95 backdrop-blur-md border border-purple-200 shadow-2xl rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 my-4">
+              {/* Fixed Bottom Submit Action Bar */}
+              <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-purple-200 shadow-2xl p-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="text-xs text-slate-600">
                   Total selecionado para gravação: <strong className="text-[#660099] font-mono text-sm">{activeBatchTotalUnits} unidades</strong> em <strong className="text-slate-900">{activeBatchCount} EPIs</strong>.
                 </div>

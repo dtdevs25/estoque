@@ -9,7 +9,7 @@ export type CategoryType =
   | 'Vestimentas e Corpo Inteiro'
   | 'Ergonomia';
 
-export type MovementType = 'SAIDA' | 'ENTRADA';
+export type MovementType = 'SAIDA' | 'ENTRADA' | 'AJUSTE' | 'TRANSFERENCIA_SAIDA' | 'TRANSFERENCIA_ENTRADA' | 'ENTREGA_KIT';
 
 export type UserRole = 'ADMIN' | 'CONTROLLER' | 'VIEWER';
 
@@ -127,5 +127,6 @@ export interface BatchMovementEntry {
   itemId: string;
   quantity: number;
   type: MovementType;
+  newQuantity?: number;
   notes?: string;
 }

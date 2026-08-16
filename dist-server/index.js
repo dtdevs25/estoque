@@ -1006,11 +1006,23 @@ movementsRouter.post("/batch", requireAdminOrController, async (req, res) => {
     for (const entry of entries) {
       const targetLoc = locationId && locationId !== "ALL" ? locationId : void 0;
       const item = await getOrCreateItemForLocation(entry.itemId, targetLoc);
-      if (!item || entry.quantity <= 0) continue;
-      const mType = entry.type === "ENTRADA" ? "ENTRADA" : "SAIDA";
+      if (!item) continue;
       const prev = item.quantity;
-      const newQty = mType === "ENTRADA" ? prev + entry.quantity : prev - entry.quantity;
-      if (mType === "SAIDA" && newQty < 0) continue;
+      let mType = entry.type;
+      let newQty = prev;
+      let qtyDiff = entry.quantity;
+      if (mType === "AJUSTE") {
+        newQty = Number(entry.newQuantity !== void 0 ? entry.newQuantity : entry.quantity);
+        qtyDiff = Math.abs(newQty - prev);
+      } else if (mType === "ENTRADA") {
+        if (entry.quantity <= 0) continue;
+        newQty = prev + entry.quantity;
+      } else {
+        mType = "SAIDA";
+        if (entry.quantity <= 0) continue;
+        newQty = prev - entry.quantity;
+        if (newQty < 0) continue;
+      }
       const itemLoc = item.locationId ? await prisma.location.findUnique({ where: { id: item.locationId } }) : null;
       const locName = itemLoc?.name || fallbackLocationName;
       const [updated, movement] = await prisma.$transaction([
@@ -1018,7 +1030,7 @@ movementsRouter.post("/batch", requireAdminOrController, async (req, res) => {
         prisma.stockMovement.create({
           data: {
             type: mType,
-            quantity: entry.quantity,
+            quantity: qtyDiff,
             previousQuantity: prev,
             newQuantity: newQty,
             itemId: item.id,
@@ -1028,7 +1040,7 @@ movementsRouter.post("/batch", requireAdminOrController, async (req, res) => {
             employeeName,
             employeeRole,
             employeeRegistration,
-            reason: isDailyClosing ? `Baixa Di\xE1ria: ${reason}` : reason,
+            reason: mType === "AJUSTE" ? reason ? `Ajuste em Lote: ${reason}` : `Ajuste de Estoque / Invent\xE1rio (${prev} \u2192 ${newQty})` : isDailyClosing ? `Baixa Di\xE1ria: ${reason}` : reason,
             notes: entry.notes || notes,
             userId: req.user.id
           }

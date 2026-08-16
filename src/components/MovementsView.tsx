@@ -97,20 +97,37 @@ export const MovementsView: React.FC = () => {
 
   const handleBatchReasonChange = (newReason: string) => {
     setBatchReason(newReason);
-    const isEntrada = newReason.toLowerCase().includes('recebimento') || newReason.toLowerCase().includes('entrada');
-    const targetType: MovementType = isEntrada ? 'ENTRADA' : 'SAIDA';
-    
-    setBatchDefaultType(targetType);
-    setBatchEntries(prev => {
-      const next = { ...prev };
-      Object.keys(next).forEach(key => {
-        next[key] = {
-          ...next[key],
-          type: targetType,
-        };
+    if (newReason === 'Ajuste de Estoque / Contagem Física') {
+      const targetType: MovementType = 'AJUSTE';
+      setBatchDefaultType(targetType);
+      setBatchEntries(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(key => {
+          const item = items.find(i => i.id === key);
+          next[key] = {
+            qty: next[key]?.qty !== undefined ? next[key].qty : (item?.quantity ?? 0),
+            notes: next[key]?.notes || '',
+            type: targetType,
+          };
+        });
+        return next;
       });
-      return next;
-    });
+    } else {
+      const isEntrada = newReason.toLowerCase().includes('recebimento') || newReason.toLowerCase().includes('entrada');
+      const targetType: MovementType = isEntrada ? 'ENTRADA' : 'SAIDA';
+      
+      setBatchDefaultType(targetType);
+      setBatchEntries(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(key => {
+          next[key] = {
+            ...next[key],
+            type: targetType,
+          };
+        });
+        return next;
+      });
+    }
   };
 
   const handleBatchQtyChange = (itemId: string, qtyStr: string) => {
@@ -127,14 +144,19 @@ export const MovementsView: React.FC = () => {
   };
 
   const handleBatchTypeChange = (itemId: string, type: MovementType) => {
-    setBatchEntries(prev => ({
-      ...prev,
-      [itemId]: {
-        qty: prev[itemId]?.qty || 0,
-        notes: prev[itemId]?.notes || '',
-        type,
-      }
-    }));
+    setBatchEntries(prev => {
+      const item = items.find(i => i.id === itemId);
+      const currentQty = prev[itemId]?.qty;
+      const initialQty = type === 'AJUSTE' ? (currentQty !== undefined ? currentQty : (item?.quantity ?? 0)) : (currentQty || 0);
+      return {
+        ...prev,
+        [itemId]: {
+          qty: initialQty,
+          notes: prev[itemId]?.notes || '',
+          type,
+        }
+      };
+    });
   };
 
   const handleBatchNotesChange = (itemId: string, notes: string) => {
@@ -155,8 +177,26 @@ export const MovementsView: React.FC = () => {
   };
 
   // Active items being moved in batch
-  const activeBatchCount = (Object.values(batchEntries) as BatchEntryItem[]).filter(e => e.qty > 0).length;
-  const activeBatchTotalUnits = (Object.values(batchEntries) as BatchEntryItem[]).reduce((acc, curr) => acc + (curr.qty > 0 ? curr.qty : 0), 0);
+  const activeBatchEntries = useMemo(() => {
+    return (Object.entries(batchEntries) as [string, BatchEntryItem][]).filter(([itemId, e]) => {
+      const item = items.find(i => i.id === itemId);
+      if (!item) return false;
+      if (e.type === 'AJUSTE') {
+        return e.qty !== undefined && e.qty !== item.quantity;
+      }
+      return e.qty > 0;
+    });
+  }, [batchEntries, items]);
+
+  const activeBatchCount = activeBatchEntries.length;
+  const activeBatchTotalUnits = activeBatchEntries.reduce((acc, [itemId, e]) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return acc;
+    if (e.type === 'AJUSTE') {
+      return acc + Math.abs((e.qty ?? item.quantity) - item.quantity);
+    }
+    return acc + e.qty;
+  }, 0);
 
   const handleSubmitBatch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,11 +211,20 @@ export const MovementsView: React.FC = () => {
     const validEntries: BatchMovementEntry[] = [];
 
     for (const [itemId, data] of (Object.entries(batchEntries) as [string, BatchEntryItem][])) {
-      if (data.qty > 0) {
-        const item = items.find(i => i.id === itemId);
-        if (!item) continue;
+      const item = items.find(i => i.id === itemId);
+      if (!item) continue;
 
-        // Check stock availability if salida
+      if (data.type === 'AJUSTE') {
+        if (data.qty !== undefined && data.qty !== item.quantity && data.qty >= 0) {
+          validEntries.push({
+            itemId,
+            quantity: Math.abs(data.qty - item.quantity),
+            newQuantity: data.qty,
+            type: 'AJUSTE',
+            notes: data.notes,
+          });
+        }
+      } else if (data.qty > 0) {
         if (data.type === 'SAIDA' && data.qty > item.quantity) {
           setBatchErrorMsg(`Saldo insuficiente para o item "${item.name}". Disponível: ${item.quantity}, Solicitado: ${data.qty}.`);
           return;
@@ -191,7 +240,7 @@ export const MovementsView: React.FC = () => {
     }
 
     if (validEntries.length === 0) {
-      setBatchErrorMsg('Insira a quantidade de pelo menos um EPI para lançar no lote.');
+      setBatchErrorMsg('Insira ou altere a quantidade de pelo menos um EPI para lançar no lote.');
       return;
     }
 
@@ -226,11 +275,11 @@ export const MovementsView: React.FC = () => {
     });
 
     if (res.success) {
-      setBatchSuccessMsg(`Sucesso! Foram registradas ${res.count} movimentações consolidadas de EPIs no almoxarifado Vivo.`);
+      setBatchSuccessMsg(`Sucesso! Foram registradas ${res.count} movimentações/ajustes consolidados de EPIs no almoxarifado.`);
       setBatchEntries({});
       setTimeout(() => setBatchSuccessMsg(null), 6000);
     } else {
-      setBatchErrorMsg(res.error || 'Erro ao processar lote diário.');
+      setBatchErrorMsg(res.error || 'Erro ao processar lote.');
     }
   };
 
@@ -557,6 +606,7 @@ export const MovementsView: React.FC = () => {
                   >
                     <option value="Entregas aos Colaboradores">Entregas aos Colaboradores (Saída)</option>
                     <option value="Recebimento de material">Recebimento de material (Entrada)</option>
+                    <option value="Ajuste de Estoque / Contagem Física">Ajuste de Estoque / Contagem Física (Balanço em Lote)</option>
                     <option value="Movimentação de estoque">Movimentação de estoque (Saída/Transferência)</option>
                   </select>
                 </div>
@@ -572,7 +622,12 @@ export const MovementsView: React.FC = () => {
                       setBatchEntries(prev => {
                         const next = { ...prev };
                         Object.keys(next).forEach(key => {
-                          next[key].type = newType;
+                          const item = items.find(i => i.id === key);
+                          next[key] = {
+                            qty: next[key]?.qty !== undefined ? next[key].qty : (newType === 'AJUSTE' ? (item?.quantity ?? 0) : 0),
+                            notes: next[key]?.notes || '',
+                            type: newType,
+                          };
                         });
                         return next;
                       });
@@ -581,6 +636,7 @@ export const MovementsView: React.FC = () => {
                   >
                     <option value="SAIDA">Saída</option>
                     <option value="ENTRADA">Entrada</option>
+                    <option value="AJUSTE">Ajuste / Contagem Físcia (Balanço)</option>
                   </select>
                 </div>
 
@@ -691,20 +747,38 @@ export const MovementsView: React.FC = () => {
                         <th className="py-3 px-4">EPI & CA</th>
                         <th className="py-3 px-4">Categoria</th>
                         <th className="py-3 px-4 text-center">Saldo Atual</th>
-                        <th className="py-3 px-4 w-32 text-center">Tipo</th>
+                        <th className="py-3 px-4 w-36 text-center">Tipo</th>
                         <th className="py-3 px-4 w-32 text-center bg-purple-50/70 text-[#660099]">
-                          QTDE
+                          {batchDefaultType === 'AJUSTE' ? 'Nova Qtd' : 'QTDE'}
                         </th>
-                        <th className="py-3 px-4 text-center">Novo Saldo</th>
+                        <th className="py-3 px-4 text-center">Novo Saldo (Diferença)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {batchLocationItems.map(item => {
-                        const entry = batchEntries[item.id] || { qty: 0, notes: '', type: batchDefaultType };
-                        const isMoved = entry.qty > 0;
-                        const isOut = entry.type === 'SAIDA';
-                        const projectedStock = isOut ? item.quantity - entry.qty : item.quantity + entry.qty;
-                        const isInvalid = isOut && projectedStock < 0;
+                        const rawEntry = batchEntries[item.id];
+                        const entryType = rawEntry?.type || batchDefaultType;
+                        const isAjuste = entryType === 'AJUSTE';
+                        
+                        let projectedStock = item.quantity;
+                        let isMoved = false;
+                        let isInvalid = false;
+                        let diff = 0;
+
+                        if (isAjuste) {
+                          const hasCustomVal = rawEntry !== undefined && rawEntry.qty !== undefined;
+                          projectedStock = hasCustomVal ? rawEntry.qty : item.quantity;
+                          diff = projectedStock - item.quantity;
+                          isMoved = hasCustomVal && diff !== 0;
+                          isInvalid = projectedStock < 0;
+                        } else {
+                          const qty = rawEntry?.qty || 0;
+                          const isOut = entryType === 'SAIDA';
+                          projectedStock = isOut ? item.quantity - qty : item.quantity + qty;
+                          isMoved = qty > 0;
+                          isInvalid = isOut && projectedStock < 0;
+                          diff = isOut ? -qty : qty;
+                        }
 
                         return (
                           <tr 
@@ -733,16 +807,19 @@ export const MovementsView: React.FC = () => {
 
                             <td className="py-2.5 px-4 text-center">
                               <select
-                                value={entry.type}
+                                value={entryType}
                                 onChange={(e) => handleBatchTypeChange(item.id, e.target.value as MovementType)}
                                 className={`text-xs font-semibold px-2 py-1 rounded border focus:outline-none ${
-                                  entry.type === 'SAIDA' 
+                                  entryType === 'SAIDA' 
                                     ? 'bg-rose-50 border-rose-200 text-rose-700' 
-                                    : 'bg-purple-50 border-purple-200 text-[#660099]'
+                                    : entryType === 'AJUSTE'
+                                      ? 'bg-amber-50 border-amber-200 text-amber-800 font-bold'
+                                      : 'bg-purple-50 border-purple-200 text-[#660099]'
                                 }`}
                               >
                                 <option value="SAIDA">Saída</option>
                                 <option value="ENTRADA">Entrada</option>
+                                <option value="AJUSTE">Ajuste (Contagem)</option>
                               </select>
                             </td>
 
@@ -751,9 +828,9 @@ export const MovementsView: React.FC = () => {
                                 id={`batch-input-qty-${item.id}`}
                                 type="number"
                                 min="0"
-                                max={isOut ? item.quantity : 9999}
-                                placeholder="0"
-                                value={entry.qty || ''}
+                                max={entryType === 'SAIDA' ? item.quantity : 9999}
+                                placeholder={isAjuste ? String(item.quantity) : "0"}
+                                value={rawEntry?.qty !== undefined ? rawEntry.qty : (isAjuste ? item.quantity : '')}
                                 onChange={(e) => handleBatchQtyChange(item.id, e.target.value)}
                                 className={`w-24 text-center py-1.5 px-2 font-mono font-bold text-sm border rounded-lg focus:ring-2 focus:ring-[#660099] focus:outline-none transition-all ${
                                   isInvalid 
@@ -767,9 +844,14 @@ export const MovementsView: React.FC = () => {
 
                             <td className="py-2.5 px-4 text-center font-mono text-xs">
                               {isMoved ? (
-                                <span className={`font-bold ${isInvalid ? 'text-rose-600 font-extrabold' : 'text-slate-900'}`}>
-                                  {projectedStock} {item.unit}
-                                </span>
+                                <div className="flex flex-col items-center">
+                                  <span className={`font-bold ${isInvalid ? 'text-rose-600 font-extrabold' : 'text-slate-900'}`}>
+                                    {projectedStock} {item.unit}
+                                  </span>
+                                  <span className={`text-[10px] font-bold ${diff >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                    ({diff >= 0 ? `+${diff}` : diff})
+                                  </span>
+                                </div>
                               ) : (
                                 <span className="text-slate-400">—</span>
                               )}

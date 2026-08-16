@@ -92,8 +92,19 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [kits, setKits] = useState<EpiKit[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [currentUser, setCurrentUser] = useState<AppUser>(EMPTY_USER);
+  const [currentUser, setCurrentUserInternal] = useState<AppUser>(EMPTY_USER);
   const [selectedLocationId, setSelectedLocationId] = useState<string | 'ALL'>('ALL');
+
+  const setCurrentUser = useCallback((userOrFn: AppUser | ((prev: AppUser) => AppUser)) => {
+    setCurrentUserInternal(prev => {
+      const nextUser = typeof userOrFn === 'function' ? userOrFn(prev) : userOrFn;
+      if (!nextUser) return EMPTY_USER;
+      return {
+        ...nextUser,
+        locationIds: Array.isArray(nextUser.locationIds) ? nextUser.locationIds : ['ALL'],
+      };
+    });
+  }, []);
 
   // ── Load all data once authenticated ──────────────────────────────────────
 
@@ -107,11 +118,25 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         api.movements.list(),
         api.users.list(),
       ]);
-      setLocations(locsData);
-      setItems(itemsData);
-      setKits(kitsData.map((k: any) => ({ ...k, components: k.components || [] })));
-      setMovements(movsData);
-      setUsers(usersData);
+      setLocations(locsData || []);
+      setItems((itemsData || []).map((i: any) => ({
+        ...i,
+        quantity: typeof i.quantity === 'number' ? i.quantity : 0,
+        minQuantity: typeof i.minQuantity === 'number' ? i.minQuantity : 0,
+      })));
+      setKits((kitsData || []).map((k: any) => ({
+        ...k,
+        components: (k.components || []).map((comp: any) => ({
+          ...comp,
+          quantity: comp.quantity || comp.requiredQuantity || 1,
+          requiredQuantity: comp.quantity || comp.requiredQuantity || 1,
+        }))
+      })));
+      setMovements(movsData || []);
+      setUsers((usersData || []).map((u: any) => ({
+        ...u,
+        locationIds: Array.isArray(u.locationIds) ? u.locationIds : ['ALL']
+      })));
     } catch (e) {
       console.error('Failed to load data:', e);
     } finally {
@@ -125,13 +150,14 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       .then((user: AppUser) => {
         setCurrentUser(user);
         setIsAuthenticated(true);
-        if (!user.locationIds.includes('ALL') && user.locationIds.length > 0) {
-          setSelectedLocationId(user.locationIds[0]);
+        const locs = user?.locationIds || [];
+        if (!locs.includes('ALL') && locs.length > 0) {
+          setSelectedLocationId(locs[0]);
         }
       })
       .catch(() => setIsAuthenticated(false))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [setCurrentUser]);
 
   useEffect(() => {
     if (isAuthenticated) loadAll();
@@ -143,8 +169,9 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const res = await api.auth.login(email, password);
     setCurrentUser(res.user);
     setIsAuthenticated(true);
-    if (!res.user.locationIds.includes('ALL') && res.user.locationIds.length > 0) {
-      setSelectedLocationId(res.user.locationIds[0]);
+    const locs = res.user?.locationIds || [];
+    if (!locs.includes('ALL') && locs.length > 0) {
+      setSelectedLocationId(locs[0]);
     }
   };
 
@@ -162,16 +189,18 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const isCurrentUserViewer = currentUser.role === 'VIEWER';
 
   const userAccessibleLocations = useMemo(() => {
-    if (isCurrentUserAdmin || currentUser.locationIds.includes('ALL')) return locations;
-    return locations.filter(l => currentUser.locationIds.includes(l.id));
-  }, [locations, isCurrentUserAdmin, currentUser.locationIds]);
+    const locs = currentUser?.locationIds || [];
+    if (isCurrentUserAdmin || locs.includes('ALL')) return locations;
+    return locations.filter(l => locs.includes(l.id));
+  }, [locations, isCurrentUserAdmin, currentUser]);
 
   const canEditStock = useCallback((targetLocationId?: string): boolean => {
     if (isCurrentUserViewer) return false;
     if (isCurrentUserAdmin) return true;
-    if (currentUser.locationIds.includes('ALL')) return true;
+    const locs = currentUser?.locationIds || [];
+    if (locs.includes('ALL')) return true;
     if (!targetLocationId) return true;
-    return currentUser.locationIds.includes(targetLocationId);
+    return locs.includes(targetLocationId);
   }, [currentUser, isCurrentUserAdmin, isCurrentUserViewer]);
 
   const canManageUsers = isCurrentUserAdmin;

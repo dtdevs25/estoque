@@ -1,0 +1,1195 @@
+// server/index.ts
+import "dotenv/config";
+import express from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import rateLimit2 from "express-rate-limit";
+import path2 from "path";
+import { fileURLToPath } from "url";
+
+// server/routes/auth.ts
+import { Router } from "express";
+import bcrypt from "bcryptjs";
+import jwt2 from "jsonwebtoken";
+import crypto from "crypto";
+import rateLimit from "express-rate-limit";
+
+// server/lib/prisma.ts
+import { PrismaClient } from "@prisma/client";
+var prisma = global.__prisma || new PrismaClient({
+  log: process.env.NODE_ENV === "development" ? ["error"] : []
+});
+if (process.env.NODE_ENV !== "production") {
+  global.__prisma = prisma;
+}
+
+// server/middleware/auth.ts
+import jwt from "jsonwebtoken";
+function authenticate(req, res, next) {
+  const token = req.cookies?.token || req.headers.authorization?.replace("Bearer ", "");
+  if (!token) {
+    res.status(401).json({ message: "N\xE3o autenticado." });
+    return;
+  }
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = payload;
+    next();
+  } catch {
+    res.status(401).json({ message: "Token inv\xE1lido ou expirado." });
+  }
+}
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== "ADMIN") {
+    res.status(403).json({ message: "Apenas administradores podem realizar esta a\xE7\xE3o." });
+    return;
+  }
+  next();
+}
+function requireAdminOrController(req, res, next) {
+  if (req.user?.role === "VIEWER") {
+    res.status(403).json({ message: "Visualizadores n\xE3o podem modificar dados." });
+    return;
+  }
+  next();
+}
+
+// server/lib/email.ts
+import nodemailer from "nodemailer";
+var transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
+  }
+});
+async function sendPasswordSetupEmail(to, name, token) {
+  const url = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
+  await transporter.sendMail({
+    from: `"EstoqueEPI" <${process.env.SMTP_USER}>`,
+    to,
+    subject: "Bem-vindo ao EstoqueEPI \u2014 Configure sua senha",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px;">
+        <h2 style="color:#660099;">Bem-vindo, ${name}!</h2>
+        <p>Seu acesso ao <strong>EstoqueEPI</strong> foi criado. Clique no bot\xE3o abaixo para definir sua senha:</p>
+        <a href="${url}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#660099;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">
+          Definir Minha Senha
+        </a>
+        <p style="color:#6b7280;font-size:12px;">Este link expira em 24 horas. Se n\xE3o solicitou este acesso, ignore este e-mail.</p>
+      </div>
+    `
+  });
+}
+async function sendPasswordResetEmail(to, name, token) {
+  const url = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
+  await transporter.sendMail({
+    from: `"EstoqueEPI" <${process.env.SMTP_USER}>`,
+    to,
+    subject: "Redefini\xE7\xE3o de senha \u2014 EstoqueEPI",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px;">
+        <h2 style="color:#660099;">Redefini\xE7\xE3o de Senha</h2>
+        <p>Ol\xE1, <strong>${name}</strong>! Recebemos uma solicita\xE7\xE3o de redefini\xE7\xE3o de senha.</p>
+        <a href="${url}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#660099;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">
+          Redefinir Senha
+        </a>
+        <p style="color:#6b7280;font-size:12px;">Este link expira em 1 hora. Se n\xE3o solicitou isso, ignore este e-mail.</p>
+      </div>
+    `
+  });
+}
+async function sendLowStockAlert(itemName, locationName, quantity, minQuantity) {
+  try {
+    const webhookUrl = process.env.N8N_WEBHOOK_ESTOQUE_BAIXO;
+    if (webhookUrl) {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemName, locationName, quantity, minQuantity, timestamp: (/* @__PURE__ */ new Date()).toISOString() })
+      });
+    }
+  } catch (e) {
+    console.warn("N8N webhook failed:", e);
+  }
+}
+
+// server/routes/auth.ts
+var authRouter = Router();
+var loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Muitas tentativas de login. Tente novamente em 15 minutos." },
+  skipSuccessfulRequests: true
+});
+var forgotLimiter = rateLimit({
+  windowMs: 60 * 60 * 1e3,
+  max: 5,
+  message: { message: "Muitas solicita\xE7\xF5es. Tente novamente mais tarde." }
+});
+function issueToken(userId, role, email) {
+  return jwt2.sign(
+    { id: userId, role, email },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d", algorithm: "HS256" }
+  );
+}
+function setAuthCookie(res, token) {
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1e3,
+    path: "/"
+  });
+}
+authRouter.post("/login", loginLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || typeof email !== "string" || !password || typeof password !== "string") {
+      res.status(400).json({ message: "E-mail e senha s\xE3o obrigat\xF3rios." });
+      return;
+    }
+    if (email.length > 255 || password.length > 256) {
+      res.status(400).json({ message: "Dados inv\xE1lidos." });
+      return;
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const hashToCompare = user?.password ?? "$2a$12$invalidhashfortiminguniformity..padded";
+    const valid = await bcrypt.compare(password, hashToCompare);
+    if (!user || !valid) {
+      res.status(401).json({ message: "E-mail ou senha inv\xE1lidos." });
+      return;
+    }
+    if (user.status === "INATIVO") {
+      res.status(403).json({ message: "Conta suspensa. Contate o administrador." });
+      return;
+    }
+    const token = issueToken(user.id, user.role, user.email);
+    setAuthCookie(res, token);
+    const { password: _, ...safeUser } = user;
+    res.json({ user: safeUser });
+  } catch (e) {
+    console.error("[auth/login]", e);
+    res.status(500).json({ message: "Erro interno. Tente novamente." });
+  }
+});
+authRouter.post("/logout", (_req, res) => {
+  res.clearCookie("token", { path: "/" });
+  res.json({ success: true });
+});
+authRouter.get("/me", authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        locationIds: true,
+        status: true,
+        department: true,
+        notes: true,
+        createdAt: true
+      }
+    });
+    if (!user || user.status === "INATIVO") {
+      res.clearCookie("token", { path: "/" });
+      res.status(401).json({ message: "Sess\xE3o inv\xE1lida." });
+      return;
+    }
+    res.json(user);
+  } catch {
+    res.status(500).json({ message: "Erro interno." });
+  }
+});
+authRouter.post("/forgot-password", forgotLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== "string" || email.length > 255) {
+      res.status(400).json({ message: "E-mail inv\xE1lido." });
+      return;
+    }
+    res.json({ success: true });
+    const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (!user) return;
+    await prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, used: false },
+      data: { used: true }
+    });
+    const token = crypto.randomBytes(48).toString("hex");
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token: crypto.createHash("sha256").update(token).digest("hex"),
+        // store hashed
+        expiresAt: new Date(Date.now() + 60 * 60 * 1e3)
+      }
+    });
+    await sendPasswordResetEmail(user.email, user.name, token).catch(
+      (e) => console.error("[forgot-password] email send failed:", e)
+    );
+  } catch (e) {
+    console.error("[auth/forgot-password]", e);
+  }
+});
+authRouter.post("/reset-password", rateLimit({ windowMs: 15 * 60 * 1e3, max: 10 }), async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password || password.length < 8 || password.length > 256) {
+      res.status(400).json({ message: "Token inv\xE1lido ou senha muito curta (m\xEDnimo 8 caracteres)." });
+      return;
+    }
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    const resetToken = await prisma.passwordResetToken.findUnique({ where: { token: hashedToken } });
+    if (!resetToken || resetToken.used || resetToken.expiresAt < /* @__PURE__ */ new Date()) {
+      res.status(400).json({ message: "Link inv\xE1lido ou expirado. Solicite um novo." });
+      return;
+    }
+    const hashed = await bcrypt.hash(password, 12);
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: resetToken.userId }, data: { password: hashed } }),
+      prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { used: true } })
+    ]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[auth/reset-password]", e);
+    res.status(500).json({ message: "Erro interno." });
+  }
+});
+
+// server/routes/users.ts
+import { Router as Router2 } from "express";
+import bcrypt2 from "bcryptjs";
+import crypto2 from "crypto";
+var usersRouter = Router2();
+usersRouter.use(authenticate);
+var SAFE_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  locationIds: true,
+  status: true,
+  department: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true
+};
+usersRouter.get("/", async (_req, res) => {
+  try {
+    const users = await prisma.user.findMany({ select: SAFE_SELECT, orderBy: { name: "asc" } });
+    res.json(users);
+  } catch {
+    res.status(500).json({ message: "Erro ao listar usu\xE1rios." });
+  }
+});
+usersRouter.post("/", requireAdmin, async (req, res) => {
+  try {
+    const { name, email, role, locationIds, department, notes, status } = req.body;
+    if (!name || !email) {
+      res.status(400).json({ message: "Nome e e-mail s\xE3o obrigat\xF3rios." });
+      return;
+    }
+    const exists = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (exists) {
+      res.status(409).json({ message: "E-mail j\xE1 cadastrado." });
+      return;
+    }
+    const tempToken = crypto2.randomBytes(32).toString("hex");
+    const tempPassword = await bcrypt2.hash(crypto2.randomBytes(16).toString("hex"), 10);
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email: email.toLowerCase(),
+        password: tempPassword,
+        role: role || "VIEWER",
+        locationIds: locationIds || ["ALL"],
+        department,
+        notes,
+        status: status || "ATIVO"
+      },
+      select: SAFE_SELECT
+    });
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token: tempToken,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1e3)
+        // 24h
+      }
+    });
+    try {
+      await sendPasswordSetupEmail(user.email, user.name, tempToken);
+    } catch (e) {
+      console.warn("Failed to send welcome email:", e);
+    }
+    res.status(201).json(user);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Erro ao criar usu\xE1rio." });
+  }
+});
+usersRouter.put("/:id", requireAdmin, async (req, res) => {
+  try {
+    const { name, email, role, locationIds, department, notes, status } = req.body;
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: { name, email: email?.toLowerCase(), role, locationIds, department, notes, status },
+      select: SAFE_SELECT
+    });
+    res.json(user);
+  } catch {
+    res.status(500).json({ message: "Erro ao atualizar usu\xE1rio." });
+  }
+});
+usersRouter.delete("/:id", requireAdmin, async (req, res) => {
+  try {
+    if (req.params.id === req.user.id) {
+      res.status(400).json({ message: "Voc\xEA n\xE3o pode excluir sua pr\xF3pria conta." });
+      return;
+    }
+    await prisma.user.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ message: "Erro ao excluir usu\xE1rio." });
+  }
+});
+usersRouter.post("/:id/resend-password", requireAdmin, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!user) {
+      res.status(404).json({ message: "Usu\xE1rio n\xE3o encontrado." });
+      return;
+    }
+    const token = crypto2.randomBytes(32).toString("hex");
+    await prisma.passwordResetToken.create({
+      data: { userId: user.id, token, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1e3) }
+    });
+    await sendPasswordSetupEmail(user.email, user.name, token);
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ message: "Erro ao reenviar senha." });
+  }
+});
+
+// server/routes/locations.ts
+import { Router as Router3 } from "express";
+var locationsRouter = Router3();
+locationsRouter.use(authenticate);
+locationsRouter.get("/", async (_req, res) => {
+  try {
+    const locations = await prisma.location.findMany({ orderBy: { name: "asc" } });
+    res.json(locations);
+  } catch {
+    res.status(500).json({ message: "Erro ao listar almoxarifados." });
+  }
+});
+locationsRouter.post("/", requireAdmin, async (req, res) => {
+  try {
+    const { name, code, address, description, responsibleName, responsibleContact } = req.body;
+    if (!name || !code) {
+      res.status(400).json({ message: "Nome e c\xF3digo s\xE3o obrigat\xF3rios." });
+      return;
+    }
+    const location = await prisma.location.create({
+      data: { name, code: code.toUpperCase(), address, description, responsibleName, responsibleContact }
+    });
+    res.status(201).json(location);
+  } catch (e) {
+    if (e.code === "P2002") {
+      res.status(409).json({ message: "C\xF3digo de almoxarifado j\xE1 existe." });
+      return;
+    }
+    res.status(500).json({ message: "Erro ao criar almoxarifado." });
+  }
+});
+locationsRouter.put("/:id", requireAdmin, async (req, res) => {
+  try {
+    const { name, code, address, description, responsibleName, responsibleContact } = req.body;
+    const location = await prisma.location.update({
+      where: { id: req.params.id },
+      data: { name, code: code?.toUpperCase(), address, description, responsibleName, responsibleContact }
+    });
+    res.json(location);
+  } catch {
+    res.status(500).json({ message: "Erro ao atualizar almoxarifado." });
+  }
+});
+locationsRouter.delete("/:id", requireAdmin, async (req, res) => {
+  try {
+    const hasItems = await prisma.epiItem.count({ where: { locationId: req.params.id } });
+    if (hasItems > 0) {
+      res.status(400).json({ message: "N\xE3o \xE9 poss\xEDvel excluir: existem itens vinculados a este almoxarifado." });
+      return;
+    }
+    await prisma.location.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ message: "Erro ao excluir almoxarifado." });
+  }
+});
+
+// server/routes/items.ts
+import { Router as Router4 } from "express";
+var itemsRouter = Router4();
+itemsRouter.use(authenticate);
+itemsRouter.get("/", async (_req, res) => {
+  try {
+    const items = await prisma.epiItem.findMany({ orderBy: { name: "asc" } });
+    res.json(items);
+  } catch {
+    res.status(500).json({ message: "Erro ao listar itens." });
+  }
+});
+itemsRouter.get("/:id", async (req, res) => {
+  try {
+    const item = await prisma.epiItem.findUnique({ where: { id: req.params.id } });
+    if (!item) {
+      res.status(404).json({ message: "Item n\xE3o encontrado." });
+      return;
+    }
+    res.json(item);
+  } catch {
+    res.status(500).json({ message: "Erro ao buscar item." });
+  }
+});
+itemsRouter.post("/", requireAdminOrController, async (req, res) => {
+  try {
+    const { name, type, caNumber, caExpiry, brand, category, protectionCategory, unit, quantity, minQuantity, imageUrl, description, locationId } = req.body;
+    if (!name || !category || !unit || !locationId) {
+      res.status(400).json({ message: "Nome, categoria, unidade e localidade s\xE3o obrigat\xF3rios." });
+      return;
+    }
+    const item = await prisma.epiItem.create({
+      data: { name, type: type || "EPI", caNumber, caExpiry, brand, category, protectionCategory, unit, quantity: quantity || 0, minQuantity: minQuantity || 0, imageUrl, description, locationId }
+    });
+    if (quantity > 0) {
+      const location = await prisma.location.findUnique({ where: { id: locationId } });
+      await prisma.stockMovement.create({
+        data: {
+          type: "INICIAL",
+          quantity,
+          previousQuantity: 0,
+          newQuantity: quantity,
+          itemId: item.id,
+          itemName: item.name,
+          locationId,
+          locationName: location?.name || locationId,
+          reason: "Cadastro inicial do item"
+        }
+      });
+    }
+    res.status(201).json(item);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Erro ao criar item." });
+  }
+});
+itemsRouter.put("/:id", requireAdminOrController, async (req, res) => {
+  try {
+    const { name, type, caNumber, caExpiry, brand, category, protectionCategory, unit, quantity, minQuantity, imageUrl, description, locationId } = req.body;
+    let itemId = req.params.id;
+    if (itemId.startsWith("virtual-")) {
+      const parts = itemId.split("-");
+      const realItemId = parts[1];
+      const locId = locationId || parts[parts.length - 1];
+      const sourceItem = await prisma.epiItem.findUnique({ where: { id: realItemId } });
+      if (sourceItem) {
+        let existing = await prisma.epiItem.findFirst({
+          where: { name: sourceItem.name, locationId: locId }
+        });
+        if (!existing) {
+          existing = await prisma.epiItem.create({
+            data: {
+              name: name || sourceItem.name,
+              type: type || sourceItem.type,
+              caNumber: caNumber || sourceItem.caNumber,
+              caExpiry: caExpiry || sourceItem.caExpiry,
+              brand: brand || sourceItem.brand,
+              category: category || sourceItem.category,
+              protectionCategory: protectionCategory || sourceItem.protectionCategory,
+              unit: unit || sourceItem.unit,
+              quantity: quantity !== void 0 ? Number(quantity) : 0,
+              minQuantity: minQuantity !== void 0 ? Number(minQuantity) : sourceItem.minQuantity,
+              imageUrl: imageUrl || sourceItem.imageUrl,
+              description: description || sourceItem.description,
+              locationId: locId
+            }
+          });
+        }
+        itemId = existing.id;
+      }
+    }
+    const currentItem = await prisma.epiItem.findUnique({ where: { id: itemId } });
+    if (!currentItem) {
+      res.status(404).json({ message: "Item n\xE3o encontrado." });
+      return;
+    }
+    if (quantity !== void 0 && Number(quantity) !== currentItem.quantity) {
+      const diff = Number(quantity) - currentItem.quantity;
+      const movType = diff > 0 ? "ENTRADA" : "SAIDA";
+      const absDiff = Math.abs(diff);
+      const location = await prisma.location.findUnique({ where: { id: currentItem.locationId } });
+      await prisma.stockMovement.create({
+        data: {
+          type: movType,
+          quantity: absDiff,
+          previousQuantity: currentItem.quantity,
+          newQuantity: Number(quantity),
+          itemId: currentItem.id,
+          itemName: name || currentItem.name,
+          locationId: currentItem.locationId,
+          locationName: location?.name || currentItem.locationId,
+          reason: "Ajuste manual de estoque via edi\xE7\xE3o de item"
+        }
+      });
+    }
+    if (name || caNumber || brand || category || unit || imageUrl || description) {
+      await prisma.epiItem.updateMany({
+        where: { name: currentItem.name },
+        data: {
+          ...name ? { name } : {},
+          ...type ? { type } : {},
+          ...caNumber ? { caNumber } : {},
+          ...caExpiry ? { caExpiry } : {},
+          ...brand ? { brand } : {},
+          ...category ? { category } : {},
+          ...protectionCategory ? { protectionCategory } : {},
+          ...unit ? { unit } : {},
+          ...minQuantity !== void 0 ? { minQuantity: Number(minQuantity) } : {},
+          ...imageUrl ? { imageUrl } : {},
+          ...description ? { description } : {}
+        }
+      });
+    }
+    const updated = await prisma.epiItem.update({
+      where: { id: itemId },
+      data: {
+        ...quantity !== void 0 ? { quantity: Number(quantity) } : {},
+        ...locationId ? { locationId } : {}
+      }
+    });
+    res.json(updated);
+  } catch (e) {
+    console.error("Error updating item:", e);
+    res.status(500).json({ message: "Erro ao atualizar item." });
+  }
+});
+itemsRouter.delete("/:id", requireAdmin, async (req, res) => {
+  try {
+    let itemId = req.params.id;
+    if (itemId.startsWith("virtual-")) {
+      const parts = itemId.split("-");
+      const realItemId = parts[1];
+      const locId = parts[parts.length - 1];
+      const sourceItem = await prisma.epiItem.findUnique({ where: { id: realItemId } });
+      if (sourceItem) {
+        const existing = await prisma.epiItem.findFirst({ where: { name: sourceItem.name, locationId: locId } });
+        if (existing) itemId = existing.id;
+        else {
+          res.json({ success: true });
+          return;
+        }
+      }
+    }
+    await prisma.stockMovement.deleteMany({ where: { itemId } });
+    await prisma.epiItem.delete({ where: { id: itemId } });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ message: "Erro ao excluir item." });
+  }
+});
+
+// server/routes/kits.ts
+import { Router as Router5 } from "express";
+var kitsRouter = Router5();
+kitsRouter.use(authenticate);
+function parseQty(c) {
+  const val = c.quantity ?? c.requiredQuantity;
+  if (val === void 0 || val === null) return 1;
+  const num = parseInt(String(val), 10);
+  return isNaN(num) || num < 1 ? 1 : num;
+}
+kitsRouter.get("/", async (_req, res) => {
+  try {
+    const kits = await prisma.epiKit.findMany({
+      include: { components: true },
+      orderBy: { createdAt: "desc" }
+    });
+    res.json(kits);
+  } catch (e) {
+    console.error("Error listing kits:", e);
+    res.status(500).json({ message: "Erro ao listar kits." });
+  }
+});
+kitsRouter.post("/", requireAdminOrController, async (req, res) => {
+  try {
+    const { name, description, type, imageUrl, components } = req.body;
+    if (!name || !components?.length) {
+      res.status(400).json({ message: "Nome e componentes s\xE3o obrigat\xF3rios." });
+      return;
+    }
+    const kit = await prisma.epiKit.create({
+      data: {
+        name: String(name).trim(),
+        description: description ? String(description).trim() : "",
+        type: type || "EPI_EPC",
+        imageUrl: imageUrl || "",
+        components: {
+          create: components.map((c) => ({
+            itemId: String(c.itemId || ""),
+            itemName: String(c.itemName || "Item"),
+            quantity: parseQty(c)
+          }))
+        }
+      },
+      include: { components: true }
+    });
+    res.json(kit);
+  } catch (e) {
+    console.error("Error creating kit:", e);
+    res.status(500).json({ message: "Erro ao criar kit." });
+  }
+});
+kitsRouter.put("/:id", requireAdminOrController, async (req, res) => {
+  try {
+    const { name, description, type, imageUrl, components } = req.body;
+    await prisma.kitComponent.deleteMany({ where: { kitId: req.params.id } });
+    const kit = await prisma.epiKit.update({
+      where: { id: req.params.id },
+      data: {
+        name: String(name).trim(),
+        description: description ? String(description).trim() : "",
+        type,
+        imageUrl: imageUrl || "",
+        components: {
+          create: components?.map((c) => ({
+            itemId: String(c.itemId || ""),
+            itemName: String(c.itemName || "Item"),
+            quantity: parseQty(c)
+          })) || []
+        }
+      },
+      include: { components: true }
+    });
+    res.json(kit);
+  } catch (e) {
+    console.error("Error updating kit:", e);
+    res.status(500).json({ message: "Erro ao atualizar kit." });
+  }
+});
+kitsRouter.delete("/:id", requireAdmin, async (req, res) => {
+  try {
+    await prisma.epiKit.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (e) {
+    console.error("Error deleting kit:", e);
+    res.status(500).json({ message: "Erro ao excluir kit." });
+  }
+});
+
+// server/routes/movements.ts
+import { Router as Router6 } from "express";
+var movementsRouter = Router6();
+movementsRouter.use(authenticate);
+async function getOrCreateItemForLocation(itemId, targetLocationId) {
+  if (itemId.startsWith("virtual-")) {
+    const parts = itemId.split("-");
+    const locationId = targetLocationId || parts[parts.length - 1];
+    const realItemId = parts[1];
+    const sourceItem = await prisma.epiItem.findUnique({ where: { id: realItemId } });
+    if (sourceItem && locationId) {
+      let existing = await prisma.epiItem.findFirst({
+        where: { name: sourceItem.name, locationId }
+      });
+      if (!existing) {
+        existing = await prisma.epiItem.create({
+          data: {
+            name: sourceItem.name,
+            type: sourceItem.type,
+            caNumber: sourceItem.caNumber,
+            caExpiry: sourceItem.caExpiry,
+            brand: sourceItem.brand,
+            category: sourceItem.category,
+            protectionCategory: sourceItem.protectionCategory,
+            unit: sourceItem.unit,
+            quantity: 0,
+            minQuantity: sourceItem.minQuantity,
+            imageUrl: sourceItem.imageUrl,
+            description: sourceItem.description,
+            locationId
+          }
+        });
+      }
+      return existing;
+    }
+  }
+  return await prisma.epiItem.findUnique({ where: { id: itemId }, include: { location: true } });
+}
+async function checkLowStock(itemId) {
+  const item = await prisma.epiItem.findUnique({
+    where: { id: itemId },
+    include: { location: true }
+  });
+  if (item && item.quantity <= item.minQuantity && item.minQuantity > 0) {
+    await sendLowStockAlert(item.name, item.location.name, item.quantity, item.minQuantity);
+  }
+}
+movementsRouter.get("/", async (req, res) => {
+  try {
+    const { locationId, itemId, limit } = req.query;
+    const movements = await prisma.stockMovement.findMany({
+      where: {
+        ...locationId && locationId !== "ALL" ? { locationId: String(locationId) } : {},
+        ...itemId ? { itemId: String(itemId) } : {}
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit ? parseInt(String(limit)) : 500
+    });
+    res.json(movements.map((m) => ({ ...m, timestamp: m.createdAt.toISOString() })));
+  } catch {
+    res.status(500).json({ message: "Erro ao listar movimenta\xE7\xF5es." });
+  }
+});
+movementsRouter.post("/entry", requireAdminOrController, async (req, res) => {
+  try {
+    const { itemId, quantity, reason, employeeName, employeeRole, employeeRegistration, notes } = req.body;
+    if (!itemId || !quantity || quantity <= 0) {
+      res.status(400).json({ message: "Item e quantidade s\xE3o obrigat\xF3rios." });
+      return;
+    }
+    const item = await getOrCreateItemForLocation(itemId);
+    if (!item) {
+      res.status(404).json({ message: "Item n\xE3o encontrado." });
+      return;
+    }
+    const location = await prisma.location.findUnique({ where: { id: item.locationId } });
+    const prev = item.quantity;
+    const newQty = prev + quantity;
+    const [updated, movement] = await prisma.$transaction([
+      prisma.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } }),
+      prisma.stockMovement.create({
+        data: {
+          type: "ENTRADA",
+          quantity,
+          previousQuantity: prev,
+          newQuantity: newQty,
+          itemId: item.id,
+          itemName: item.name,
+          locationId: item.locationId,
+          locationName: location?.name || item.locationId,
+          employeeName,
+          employeeRole,
+          employeeRegistration,
+          reason,
+          notes,
+          userId: req.user.id
+        }
+      })
+    ]);
+    res.json({ item: updated, movement: { ...movement, timestamp: movement.createdAt.toISOString() } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Erro ao registrar entrada." });
+  }
+});
+movementsRouter.post("/exit", requireAdminOrController, async (req, res) => {
+  try {
+    const { itemId, quantity, reason, employeeName, employeeRole, employeeRegistration, notes } = req.body;
+    const item = await getOrCreateItemForLocation(itemId);
+    if (!item) {
+      res.status(404).json({ message: "Item n\xE3o encontrado." });
+      return;
+    }
+    if (item.quantity < quantity) {
+      res.status(400).json({ message: "Saldo insuficiente." });
+      return;
+    }
+    const location = await prisma.location.findUnique({ where: { id: item.locationId } });
+    const prev = item.quantity;
+    const newQty = prev - quantity;
+    const [updated, movement] = await prisma.$transaction([
+      prisma.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } }),
+      prisma.stockMovement.create({
+        data: {
+          type: "SAIDA",
+          quantity,
+          previousQuantity: prev,
+          newQuantity: newQty,
+          itemId: item.id,
+          itemName: item.name,
+          locationId: item.locationId,
+          locationName: location?.name || item.locationId,
+          employeeName,
+          employeeRole,
+          employeeRegistration,
+          reason,
+          notes,
+          userId: req.user.id
+        }
+      })
+    ]);
+    await checkLowStock(item.id);
+    res.json({ item: updated, movement: { ...movement, timestamp: movement.createdAt.toISOString() } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Erro ao registrar sa\xEDda." });
+  }
+});
+movementsRouter.post("/batch", requireAdminOrController, async (req, res) => {
+  try {
+    const { locationId, entries, reason, employeeName, employeeRole, employeeRegistration, isDailyClosing, notes } = req.body;
+    const location = await prisma.location.findUnique({ where: { id: locationId } });
+    if (!location) {
+      res.status(404).json({ message: "Localidade n\xE3o encontrada." });
+      return;
+    }
+    const results = [];
+    for (const entry of entries) {
+      const item = await getOrCreateItemForLocation(entry.itemId, locationId);
+      if (!item || entry.quantity <= 0) continue;
+      const prev = item.quantity;
+      const newQty = prev - entry.quantity;
+      if (newQty < 0) continue;
+      const [updated, movement] = await prisma.$transaction([
+        prisma.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } }),
+        prisma.stockMovement.create({
+          data: {
+            type: "SAIDA",
+            quantity: entry.quantity,
+            previousQuantity: prev,
+            newQuantity: newQty,
+            itemId: item.id,
+            itemName: item.name,
+            locationId,
+            locationName: location.name,
+            employeeName,
+            employeeRole,
+            employeeRegistration,
+            reason: isDailyClosing ? `Baixa Di\xE1ria: ${reason}` : reason,
+            notes,
+            userId: req.user.id
+          }
+        })
+      ]);
+      await checkLowStock(item.id);
+      results.push({ item: updated, movement });
+    }
+    res.json({ count: results.length, results });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Erro ao processar baixa em lote." });
+  }
+});
+movementsRouter.post("/transfer", requireAdminOrController, async (req, res) => {
+  try {
+    const { sourceItemId, targetLocationId, quantity, reason, notes } = req.body;
+    const sourceItem = await getOrCreateItemForLocation(sourceItemId);
+    if (!sourceItem) {
+      res.status(404).json({ message: "Item de origem n\xE3o encontrado." });
+      return;
+    }
+    if (sourceItem.locationId === targetLocationId) {
+      res.status(400).json({ message: "Origem e destino s\xE3o iguais." });
+      return;
+    }
+    if (sourceItem.quantity < quantity) {
+      res.status(400).json({ message: "Saldo insuficiente para transfer\xEAncia." });
+      return;
+    }
+    const sourceLocation = await prisma.location.findUnique({ where: { id: sourceItem.locationId } });
+    const targetLocation = await prisma.location.findUnique({ where: { id: targetLocationId } });
+    if (!targetLocation) {
+      res.status(404).json({ message: "Localidade de destino n\xE3o encontrada." });
+      return;
+    }
+    const prevSrc = sourceItem.quantity;
+    const newSrc = prevSrc - quantity;
+    let targetItem = await prisma.epiItem.findFirst({
+      where: { locationId: targetLocationId, name: sourceItem.name }
+    });
+    if (!targetItem) {
+      targetItem = await prisma.epiItem.create({
+        data: {
+          name: sourceItem.name,
+          type: sourceItem.type,
+          caNumber: sourceItem.caNumber,
+          caExpiry: sourceItem.caExpiry,
+          brand: sourceItem.brand,
+          category: sourceItem.category,
+          protectionCategory: sourceItem.protectionCategory,
+          unit: sourceItem.unit,
+          quantity: 0,
+          minQuantity: sourceItem.minQuantity,
+          imageUrl: sourceItem.imageUrl,
+          description: sourceItem.description,
+          locationId: targetLocationId
+        }
+      });
+    }
+    const prevTarget = targetItem.quantity;
+    const newTarget = prevTarget + quantity;
+    await prisma.$transaction(async (tx) => {
+      await tx.epiItem.update({ where: { id: sourceItem.id }, data: { quantity: newSrc } });
+      await tx.epiItem.update({ where: { id: targetItem.id }, data: { quantity: newTarget } });
+      await tx.stockMovement.createMany({
+        data: [
+          {
+            type: "TRANSFERENCIA_SAIDA",
+            quantity,
+            previousQuantity: prevSrc,
+            newQuantity: newSrc,
+            itemId: sourceItem.id,
+            itemName: sourceItem.name,
+            locationId: sourceItem.locationId,
+            locationName: sourceLocation?.name || sourceItem.locationId,
+            reason,
+            notes,
+            userId: req.user.id
+          },
+          {
+            type: "TRANSFERENCIA_ENTRADA",
+            quantity,
+            previousQuantity: prevTarget,
+            newQuantity: newTarget,
+            itemId: targetItem.id,
+            itemName: targetItem.name,
+            locationId: targetLocationId,
+            locationName: targetLocation.name,
+            reason,
+            notes,
+            userId: req.user.id
+          }
+        ]
+      });
+    });
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Erro ao realizar transfer\xEAncia." });
+  }
+});
+movementsRouter.post("/deliver-kit", requireAdminOrController, async (req, res) => {
+  try {
+    const { kitId, locationId, quantityOfKits, employeeName, employeeRole, employeeRegistration, notes } = req.body;
+    const kit = await prisma.epiKit.findUnique({ where: { id: kitId }, include: { components: true } });
+    const location = await prisma.location.findUnique({ where: { id: locationId } });
+    if (!kit || !location) {
+      res.status(404).json({ message: "Kit ou localidade n\xE3o encontrado." });
+      return;
+    }
+    for (const comp of kit.components) {
+      const item = await getOrCreateItemForLocation(comp.itemId, locationId);
+      if (!item || item.quantity < comp.quantity * quantityOfKits) {
+        res.status(400).json({ message: `Saldo insuficiente para: ${comp.itemName}` });
+        return;
+      }
+    }
+    await prisma.$transaction(async (tx) => {
+      for (const comp of kit.components) {
+        const item = await getOrCreateItemForLocation(comp.itemId, locationId);
+        if (!item) continue;
+        const deduct = comp.quantity * quantityOfKits;
+        const prev = item.quantity;
+        const newQty = prev - deduct;
+        await tx.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } });
+        await tx.stockMovement.create({
+          data: {
+            type: "ENTREGA_KIT",
+            quantity: deduct,
+            previousQuantity: prev,
+            newQuantity: newQty,
+            itemId: item.id,
+            itemName: item.name,
+            locationId,
+            locationName: location.name,
+            employeeName,
+            employeeRole,
+            employeeRegistration,
+            reason: `Entrega de Kit: ${kit.name} (${quantityOfKits}x)`,
+            notes,
+            userId: req.user.id
+          }
+        });
+      }
+    });
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Erro ao entregar kit." });
+  }
+});
+
+// server/routes/upload.ts
+import { Router as Router7 } from "express";
+import multer from "multer";
+import path from "path";
+
+// server/lib/s3.ts
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+var s3 = new S3Client({
+  endpoint: process.env.S3_ENDPOINT,
+  region: process.env.S3_REGION || "eu-east-1",
+  credentials: {
+    accessKeyId: process.env.S3_KEY,
+    secretAccessKey: process.env.S3_SECRET
+  },
+  forcePathStyle: true
+});
+async function uploadToS3(bucket, key, body, contentType) {
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      ACL: "public-read"
+    })
+  );
+  const endpoint = process.env.S3_ENDPOINT.replace(/\/$/, "");
+  return `${endpoint}/${bucket}/${key}`;
+}
+var BUCKETS = {
+  items: process.env.S3_BUCKET || "estoque-epi",
+  ergonomicos: process.env.S3_BUCKET_ERGONOMICOS || "estoque-ergonomicos",
+  fotos: process.env.S3_BUCKET_FOTOS || "estoque-usuarios"
+};
+
+// server/routes/upload.ts
+var uploadRouter = Router7();
+uploadRouter.use(authenticate, requireAdminOrController);
+var upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  // 5MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, allowed.includes(ext));
+  }
+});
+uploadRouter.post("/item", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ message: "Arquivo n\xE3o enviado." });
+      return;
+    }
+    const { itemType } = req.body;
+    const bucket = itemType === "ERGONOMICO" ? BUCKETS.ergonomicos : BUCKETS.items;
+    const key = `${Date.now()}-${req.file.originalname.replace(/\s/g, "_")}`;
+    const url = await uploadToS3(bucket, key, req.file.buffer, req.file.mimetype);
+    res.json({ url });
+  } catch (e) {
+    console.error("Upload error:", e);
+    res.status(500).json({ message: "Erro ao fazer upload da imagem." });
+  }
+});
+uploadRouter.post("/user-photo", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ message: "Arquivo n\xE3o enviado." });
+      return;
+    }
+    const key = `${Date.now()}-${req.file.originalname.replace(/\s/g, "_")}`;
+    const url = await uploadToS3(BUCKETS.fotos, key, req.file.buffer, req.file.mimetype);
+    res.json({ url });
+  } catch (e) {
+    console.error("Upload error:", e);
+    res.status(500).json({ message: "Erro ao fazer upload da foto." });
+  }
+});
+
+// server/index.ts
+var REQUIRED_ENV = ["DATABASE_URL", "JWT_SECRET", "NEXTAUTH_URL"];
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) {
+    console.error(`\u274C Missing required env var: ${key}`);
+    process.exit(1);
+  }
+}
+if (process.env.JWT_SECRET.length < 32) {
+  console.error("\u274C JWT_SECRET must be at least 32 characters.");
+  process.exit(1);
+}
+var __dirname = path2.dirname(fileURLToPath(import.meta.url));
+var app = express();
+var PORT = parseInt(process.env.PORT || "3001", 10);
+var isProd = process.env.NODE_ENV === "production";
+var ALLOWED_ORIGIN = isProd ? process.env.NEXTAUTH_URL : "http://localhost:3000";
+app.set("trust proxy", 1);
+app.use(
+  helmet({
+    contentSecurityPolicy: isProd ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", process.env.S3_ENDPOINT || ""],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"]
+      }
+    } : false,
+    crossOriginEmbedderPolicy: false,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    hsts: isProd ? { maxAge: 31536e3, includeSubDomains: true, preload: true } : false,
+    xFrameOptions: { action: "deny" },
+    noSniff: true
+  })
+);
+app.use(
+  cors({
+    origin: ALLOWED_ORIGIN,
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+  })
+);
+app.use(
+  "/api/",
+  rateLimit2({
+    windowMs: 60 * 1e3,
+    // 1 minute
+    max: 200,
+    // 200 req/min per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Muitas requisi\xE7\xF5es. Aguarde um momento." }
+  })
+);
+app.use(cookieParser());
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+app.disable("x-powered-by");
+app.use("/api/auth", authRouter);
+app.use("/api/users", usersRouter);
+app.use("/api/locations", locationsRouter);
+app.use("/api/items", itemsRouter);
+app.use("/api/kits", kitsRouter);
+app.use("/api/movements", movementsRouter);
+app.use("/api/upload", uploadRouter);
+app.get(
+  "/api/health",
+  (_req, res) => res.json({ status: "ok", ts: (/* @__PURE__ */ new Date()).toISOString() })
+);
+if (isProd) {
+  const distPath = path2.join(__dirname, "..", "dist");
+  app.use(express.static(distPath, { index: false }));
+  app.get("*", (_req, res) => res.sendFile(path2.join(distPath, "index.html")));
+}
+app.use((err, _req, res, _next) => {
+  console.error("[unhandled error]", err);
+  res.status(500).json({ message: "Erro interno do servidor." });
+});
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`\u{1F680} EstoqueEPI [${isProd ? "PROD" : "DEV"}] \u2192 http://0.0.0.0:${PORT}`);
+});

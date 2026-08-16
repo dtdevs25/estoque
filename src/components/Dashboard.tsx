@@ -58,6 +58,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
     isCurrentUserController
   } = useStock();
 
+  const userLocationIds = useMemo(() => currentUser?.locationIds || [], [currentUser]);
+  const userName = useMemo(() => {
+    const rawName = currentUser?.name || '';
+    if (!rawName.trim()) return 'Usuário';
+    return rawName.split(' ')[0] || 'Usuário';
+  }, [currentUser]);
+
   // Filter items by active location
   const filteredItems = items.filter(item => 
     selectedLocationId === 'ALL' || item.locationId === selectedLocationId
@@ -91,16 +98,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return [...filteredItems]
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 5)
-      .map(i => ({ 
-        name: i.name.length > 20 ? i.name.substring(0, 20) + '...' : i.name, 
-        quantity: i.quantity 
-      }));
+      .map(i => {
+        const rawName = i.name || '';
+        return { 
+          name: rawName.length > 20 ? rawName.substring(0, 20) + '...' : rawName, 
+          quantity: i.quantity || 0 
+        };
+      });
   }, [filteredItems]);
 
   const categoryData = useMemo(() => {
     const cats: Record<string, number> = {};
     filteredItems.forEach(i => {
-      cats[i.category] = (cats[i.category] || 0) + i.quantity;
+      const cat = i.category || 'Outros';
+      cats[cat] = (cats[cat] || 0) + (i.quantity || 0);
     });
     return Object.keys(cats)
       .map(k => ({ name: k, value: cats[k] }))
@@ -116,7 +127,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Bem-vindo, {currentUser.name.split(' ')[0]}
+              Bem-vindo, {userName}
             </h1>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-[#660099] border border-purple-200">
               <span className="w-1.5 h-1.5 rounded-full bg-[#660099] animate-pulse"></span>
@@ -129,13 +140,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <select
             id="dash-location-select"
             value={selectedLocationId}
-            disabled={!currentUser.locationIds.includes('ALL') && currentUser.locationIds.length === 1}
+            disabled={!userLocationIds.includes('ALL') && userLocationIds.length === 1}
             onChange={(e) => setSelectedLocationId(e.target.value)}
             className={`w-full text-sm font-semibold text-slate-800 bg-white border border-purple-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-[#660099] focus:outline-none cursor-pointer shadow-sm hover:border-[#660099] transition-all ${
-              !currentUser.locationIds.includes('ALL') && currentUser.locationIds.length === 1 ? 'opacity-80 bg-slate-50 cursor-not-allowed' : ''
+              !userLocationIds.includes('ALL') && userLocationIds.length === 1 ? 'opacity-80 bg-slate-50 cursor-not-allowed' : ''
             }`}
           >
-            {isCurrentUserAdmin || currentUser.locationIds.includes('ALL') ? (
+            {isCurrentUserAdmin || userLocationIds.includes('ALL') ? (
               <>
                 <option value="ALL">🏢 Todas as Localidades ({locations.length})</option>
                 {locations.map(loc => (
@@ -146,10 +157,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </>
             ) : (
               <>
-                {currentUser.locationIds.length > 1 && (
+                {userLocationIds.length > 1 && (
                   <option value="ALL">🏢 Todas as Suas Localidades</option>
                 )}
-                {locations.filter(l => currentUser.locationIds.includes(l.id)).map(loc => (
+                {locations.filter(l => userLocationIds.includes(l.id)).map(loc => (
                   <option key={loc.id} value={loc.id}>
                     📍 {loc.name} (Seu Estoque)
                   </option>

@@ -362,12 +362,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     ? 'bg-blue-100 text-blue-700'
                     : 'bg-slate-100 text-slate-700'
                 }`}>
-                  {currentUser.name.charAt(0)}
+                  {(currentUser?.name || 'U').charAt(0).toUpperCase()}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1">
-                    <p className="text-xs font-bold text-slate-800 truncate">{currentUser.name}</p>
+                    <p className="text-xs font-bold text-slate-800 truncate">{currentUser?.name || 'Usuário'}</p>
                   </div>
                   <div className="flex items-center gap-1 text-[10px] text-slate-500 truncate">
                     {getUserRoleIcon(currentUser.role)}
@@ -382,7 +382,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ) : (
               <div
                 className="w-full flex justify-center p-2 rounded-xl bg-white border border-purple-100 text-[#660099] font-bold text-xs"
-                title={`Usuário: ${currentUser.name} (${currentUser.role})`}
+                title={`Usuário: ${currentUser?.name || 'Usuário'} (${currentUser.role})`}
               >
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
                   currentUser.role === 'ADMIN' 
@@ -391,7 +391,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     ? 'bg-blue-100 text-blue-700'
                     : 'bg-slate-100 text-slate-700'
                 }`}>
-                  {currentUser.name.charAt(0)}
+                  {(currentUser?.name || 'U').charAt(0).toUpperCase()}
                 </div>
               </div>
             )}

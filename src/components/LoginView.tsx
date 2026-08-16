@@ -6,24 +6,68 @@ import * as apiService from '../services/api';
 import logoApp from '../../Logos/logo.png';
 import logoVivo from '../../Logos/logovivo.png';
 
-// Configuration for 16 floating Vivo background logos
+// 6 non-overlapping, perfectly positioned floating Vivo background logos
 const VIVO_FLOATING_LOGOS = [
-  { id: 1, style: { top: '3%', left: '4%' }, size: 'h-20 sm:h-32', opacity: 'opacity-25', duration: 10, y: [-20, 30, -20], x: [-10, 20, -10], rotate: [-8, 12, -8] },
-  { id: 2, style: { bottom: '4%', right: '5%' }, size: 'h-24 sm:h-44', opacity: 'opacity-25', duration: 13, y: [20, -40, 20], x: [15, -25, 15], rotate: [12, -15, 12] },
-  { id: 3, style: { top: '20%', right: '6%' }, size: 'h-16 sm:h-24', opacity: 'opacity-20', duration: 15, y: [-30, 25, -30], x: [-20, 25, -20], rotate: [0, -20, 0] },
-  { id: 4, style: { bottom: '18%', left: '3%' }, size: 'h-14 sm:h-22', opacity: 'opacity-20', duration: 12, y: [35, -25, 35], x: [25, -20, 25], rotate: [20, 0, 20] },
-  { id: 5, style: { top: '42%', left: '16%' }, size: 'h-12 sm:h-18', opacity: 'opacity-18', duration: 9, y: [-15, 20, -15], x: [15, -15, 15], rotate: [-15, 15, -15] },
-  { id: 6, style: { top: '8%', right: '28%' }, size: 'h-16 sm:h-24', opacity: 'opacity-18', duration: 16, y: [20, -20, 20], x: [-12, 18, -12], rotate: [10, -10, 10] },
-  { id: 7, style: { bottom: '2%', left: '42%' }, size: 'h-18 sm:h-28', opacity: 'opacity-22', duration: 14, y: [-25, 25, -25], x: [25, -25, 25], rotate: [-5, 15, -5] },
-  { id: 8, style: { top: '28%', left: '3%' }, size: 'h-12 sm:h-16', opacity: 'opacity-15', duration: 11, y: [15, -20, 15], x: [-15, 12, -15], rotate: [-10, 10, -10] },
-  { id: 9, style: { bottom: '32%', right: '4%' }, size: 'h-16 sm:h-20', opacity: 'opacity-18', duration: 13.5, y: [-20, 18, -20], x: [12, -18, 12], rotate: [15, -8, 15] },
-  { id: 10, style: { top: '2%', left: '42%' }, size: 'h-14 sm:h-18', opacity: 'opacity-15', duration: 17, y: [18, -25, 18], x: [8, -12, 8], rotate: [-12, 18, -12] },
-  { id: 11, style: { bottom: '12%', left: '26%' }, size: 'h-16 sm:h-22', opacity: 'opacity-18', duration: 12.5, y: [-12, 30, -12], x: [-12, 22, -12], rotate: [8, -18, 8] },
-  { id: 12, style: { top: '62%', right: '20%' }, size: 'h-12 sm:h-16', opacity: 'opacity-15', duration: 10.5, y: [22, -18, 22], x: [-18, 15, -18], rotate: [-15, 12, -15] },
-  { id: 13, style: { top: '14%', left: '70%' }, size: 'h-14 sm:h-20', opacity: 'opacity-20', duration: 14.5, y: [-18, 22, -18], x: [20, -15, 20], rotate: [12, -12, 12] },
-  { id: 14, style: { bottom: '42%', left: '68%' }, size: 'h-10 sm:h-14', opacity: 'opacity-14', duration: 8.5, y: [12, -15, 12], x: [-10, 12, -10], rotate: [-6, 14, -6] },
-  { id: 15, style: { top: '78%', left: '78%' }, size: 'h-16 sm:h-24', opacity: 'opacity-20', duration: 15.5, y: [-25, 20, -25], x: [18, -18, 18], rotate: [18, -14, 18] },
-  { id: 16, style: { top: '48%', right: '82%' }, size: 'h-14 sm:h-18', opacity: 'opacity-15', duration: 11.5, y: [15, -22, 15], x: [-14, 16, -14], rotate: [-10, 16, -10] },
+  {
+    id: 1,
+    style: { top: '6%', left: '6%' },
+    size: 'h-20 sm:h-28',
+    opacity: 'opacity-20',
+    duration: 11,
+    y: [-15, 15, -15],
+    x: [-10, 10, -10],
+    rotate: [-6, 8, -6],
+  },
+  {
+    id: 2,
+    style: { top: '8%', right: '8%' },
+    size: 'h-16 sm:h-24',
+    opacity: 'opacity-20',
+    duration: 14,
+    y: [15, -15, 15],
+    x: [10, -10, 10],
+    rotate: [8, -8, 8],
+  },
+  {
+    id: 3,
+    style: { bottom: '8%', left: '8%' },
+    size: 'h-18 sm:h-26',
+    opacity: 'opacity-20',
+    duration: 12,
+    y: [-18, 18, -18],
+    x: [12, -12, 12],
+    rotate: [-8, 6, -8],
+  },
+  {
+    id: 4,
+    style: { bottom: '10%', right: '10%' },
+    size: 'h-24 sm:h-36',
+    opacity: 'opacity-22',
+    duration: 13,
+    y: [20, -20, 20],
+    x: [-15, 15, -15],
+    rotate: [10, -10, 10],
+  },
+  {
+    id: 5,
+    style: { top: '48%', left: '4%' },
+    size: 'h-14 sm:h-20',
+    opacity: 'opacity-15',
+    duration: 10,
+    y: [-12, 12, -12],
+    x: [8, -8, 8],
+    rotate: [-10, 10, -10],
+  },
+  {
+    id: 6,
+    style: { top: '45%', right: '5%' },
+    size: 'h-14 sm:h-20',
+    opacity: 'opacity-15',
+    duration: 15,
+    y: [12, -12, 12],
+    x: [-8, 8, -8],
+    rotate: [10, -10, 10],
+  },
 ];
 
 export const LoginView: React.FC = () => {
@@ -119,7 +163,7 @@ export const LoginView: React.FC = () => {
         className="absolute bottom-10 right-12 w-[22rem] sm:w-[30rem] h-[22rem] sm:h-[30rem] bg-fuchsia-600/25 rounded-full blur-[120px] pointer-events-none"
       />
 
-      {/* Render 16 Floating Animated Vivo Background Logos */}
+      {/* Render 6 Non-Overlapping Floating Vivo Background Logos */}
       {VIVO_FLOATING_LOGOS.map((item) => (
         <motion.img
           key={item.id}

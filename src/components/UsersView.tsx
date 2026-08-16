@@ -51,12 +51,13 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
+  const [successModalData, setSuccessModalData] = useState<{ user: AppUser } | null>(null);
 
   const handleResendPassword = async (user: AppUser) => {
     setResendingId(user.id);
     try {
       await usersApi.resendPassword(user.id);
-      alert(`E-mail com botão para redefinição de senha foi enviado com sucesso para ${user.email}!`);
+      setSuccessModalData({ user });
     } catch (e: any) {
       alert(`Erro ao enviar e-mail: ${e.message || 'Falha na requisição'}`);
     } finally {
@@ -452,6 +453,41 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
         title="Excluir Usuário"
         itemName={userToDelete ? userToDelete.name : ''}
       />
+
+      {/* Password Reset Success Modal */}
+      {successModalData && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-purple-100 shadow-2xl max-w-md w-full overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200">
+            <div className="p-6 bg-gradient-to-r from-[#4B0072] to-[#660099] text-white text-center relative">
+              <div className="w-14 h-14 bg-white/10 rounded-full border border-white/20 flex items-center justify-center mx-auto mb-3 text-purple-200">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+              </div>
+              <h3 className="font-bold text-lg text-white">E-mail Enviado com Sucesso!</h3>
+              <p className="text-xs text-purple-200 mt-1">Redefinição de Senha Vivo SG4</p>
+            </div>
+            
+            <div className="p-6 text-center space-y-4">
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Um e-mail com as instruções e o link seguro para redefinição de senha foi enviado para:
+              </p>
+              
+              <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 font-medium text-slate-800 text-sm">
+                <div className="font-bold text-[#660099]">{successModalData.user.name}</div>
+                <div className="text-xs text-slate-500 font-mono mt-0.5">{successModalData.user.email}</div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  onClick={() => setSuccessModalData(null)}
+                  className="w-full py-3 bg-[#660099] hover:bg-[#52007a] text-white font-bold text-sm rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  Ok, Entendido
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

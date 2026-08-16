@@ -54,7 +54,7 @@ export const MovementsView: React.FC = () => {
   const [batchRole, setBatchRole] = useState('Equipe Técnica / Operacional');
   const [batchDestinationLocationId, setBatchDestinationLocationId] = useState('');
   const [batchDefaultType, setBatchDefaultType] = useState<MovementType>('SAIDA');
-  const [batchAdjustMode, setBatchAdjustMode] = useState<'SUBTRACT' | 'ADD' | 'SET'>('SUBTRACT');
+  const [batchAdjustMode, setBatchAdjustMode] = useState<'DELTA' | 'FINAL'>('DELTA');
   const [batchEntries, setBatchEntries] = useState<Record<string, BatchEntryItem>>({});
   const [batchSuccessMsg, setBatchSuccessMsg] = useState<string | null>(null);
   const [batchErrorMsg, setBatchErrorMsg] = useState<string | null>(null);
@@ -107,6 +107,7 @@ export const MovementsView: React.FC = () => {
         Object.keys(next).forEach(key => {
           next[key] = {
             qty: 0,
+            qtyStr: '',
             notes: next[key]?.notes || '',
             type: targetType,
           };
@@ -133,11 +134,12 @@ export const MovementsView: React.FC = () => {
 
   const handleBatchQtyChange = (itemId: string, qtyStr: string) => {
     const val = parseInt(qtyStr, 10);
-    const qty = isNaN(val) || val < 0 ? 0 : val;
+    const qty = isNaN(val) ? 0 : val;
     setBatchEntries(prev => ({
       ...prev,
       [itemId]: {
         qty,
+        qtyStr,
         notes: prev[itemId]?.notes || '',
         type: prev[itemId]?.type || batchDefaultType,
       }
@@ -180,25 +182,30 @@ export const MovementsView: React.FC = () => {
       const item = items.find(i => i.id === itemId);
       if (!item) return false;
       if (e.type === 'AJUSTE') {
-        const val = e.qty || 0;
-        if (val <= 0 && batchAdjustMode !== 'SET') return false;
-        if (batchAdjustMode === 'SET') return val !== item.quantity;
-        return true;
+        const rawStr = (e.qtyStr !== undefined ? e.qtyStr : (e.qty !== undefined ? String(e.qty) : '')).trim();
+        const val = parseInt(rawStr, 10);
+        if (isNaN(val) || rawStr === '') return false;
+
+        if (batchAdjustMode === 'DELTA' || rawStr.startsWith('-') || rawStr.startsWith('+')) {
+          return val !== 0;
+        } else {
+          return val !== item.quantity;
+        }
       }
       return e.qty > 0;
     });
   }, [batchEntries, items, batchAdjustMode]);
 
-  const activeBatchCount = activeBatchEntries.length;
   const activeBatchTotalUnits = activeBatchEntries.reduce((acc, [itemId, e]) => {
     const item = items.find(i => i.id === itemId);
     if (!item) return acc;
     if (e.type === 'AJUSTE') {
-      const val = e.qty || 0;
-      if (batchAdjustMode === 'SUBTRACT') {
-        return acc + Math.min(val, item.quantity);
-      } else if (batchAdjustMode === 'ADD') {
-        return acc + val;
+      const rawStr = (e.qtyStr !== undefined ? e.qtyStr : (e.qty !== undefined ? String(e.qty) : '')).trim();
+      const val = parseInt(rawStr, 10);
+      if (isNaN(val) || rawStr === '') return acc;
+
+      if (batchAdjustMode === 'DELTA' || rawStr.startsWith('-') || rawStr.startsWith('+')) {
+        return acc + Math.abs(val);
       } else {
         return acc + Math.abs(val - item.quantity);
       }
@@ -223,24 +230,25 @@ export const MovementsView: React.FC = () => {
       if (!item) continue;
 
       if (data.type === 'AJUSTE') {
-        const val = data.qty || 0;
-        let targetStock = item.quantity;
-        if (batchAdjustMode === 'SUBTRACT') {
-          targetStock = Math.max(0, item.quantity - val);
-        } else if (batchAdjustMode === 'ADD') {
-          targetStock = item.quantity + val;
-        } else {
-          targetStock = Math.max(0, val);
-        }
+        const rawStr = (data.qtyStr !== undefined ? data.qtyStr : (data.qty !== undefined ? String(data.qty) : '')).trim();
+        const val = parseInt(rawStr, 10);
+        if (!isNaN(val) && rawStr !== '') {
+          let targetStock = item.quantity;
+          if (batchAdjustMode === 'DELTA' || rawStr.startsWith('-') || rawStr.startsWith('+')) {
+            targetStock = Math.max(0, item.quantity + val);
+          } else {
+            targetStock = Math.max(0, val);
+          }
 
-        if (targetStock !== item.quantity) {
-          validEntries.push({
-            itemId,
-            quantity: Math.abs(targetStock - item.quantity),
-            newQuantity: targetStock,
-            type: 'AJUSTE',
-            notes: data.notes,
-          });
+          if (targetStock !== item.quantity) {
+            validEntries.push({
+              itemId,
+              quantity: Math.abs(targetStock - item.quantity),
+              newQuantity: targetStock,
+              type: 'AJUSTE',
+              notes: data.notes,
+            });
+          }
         }
       } else if (data.qty > 0) {
         if (data.type === 'SAIDA' && data.qty > item.quantity) {
@@ -307,7 +315,7 @@ export const MovementsView: React.FC = () => {
   const [singleCategoryFilter, setSingleCategoryFilter] = useState<'EPI_EPC' | 'ERGONOMICO'>('EPI_EPC');
   const [singleType, setSingleType] = useState<MovementType>('SAIDA');
   const [singleQty, setSingleQty] = useState<number>(1);
-  const [singleAdjustMode, setSingleAdjustMode] = useState<'SUBTRACT' | 'ADD' | 'SET'>('SUBTRACT');
+  const [singleAdjustMode, setSingleAdjustMode] = useState<'DELTA' | 'FINAL'>('DELTA');
   const [singleAdjustQty, setSingleAdjustQty] = useState<number>(0);
   const [singleReason, setSingleReason] = useState<string>('Entregas aos Colaboradores');
   const [singleDestinationLocationId, setSingleDestinationLocationId] = useState('');
@@ -366,11 +374,8 @@ export const MovementsView: React.FC = () => {
     let target = currentStock;
     let diff = 0;
 
-    if (singleAdjustMode === 'SUBTRACT') {
-      target = Math.max(0, currentStock - val);
-      diff = target - currentStock;
-    } else if (singleAdjustMode === 'ADD') {
-      target = currentStock + val;
+    if (singleAdjustMode === 'DELTA') {
+      target = Math.max(0, currentStock + val);
       diff = val;
     } else {
       target = Math.max(0, val);
@@ -691,30 +696,21 @@ export const MovementsView: React.FC = () => {
                   <div className="flex flex-wrap bg-white p-0.5 rounded-lg border border-purple-200 shadow-xs">
                     <button
                       type="button"
-                      onClick={() => setBatchAdjustMode('SUBTRACT')}
+                      onClick={() => setBatchAdjustMode('DELTA')}
                       className={`px-3 py-1 rounded-md transition-all font-semibold ${
-                        batchAdjustMode === 'SUBTRACT' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
+                        batchAdjustMode === 'DELTA' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
                       }`}
                     >
-                      ➖ Reduzir do Estoque (Baixa)
+                      📊 Variação (+ / -) (ex: -2 ou +5)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setBatchAdjustMode('ADD')}
+                      onClick={() => setBatchAdjustMode('FINAL')}
                       className={`px-3 py-1 rounded-md transition-all font-semibold ${
-                        batchAdjustMode === 'ADD' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
+                        batchAdjustMode === 'FINAL' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
                       }`}
                     >
-                      ➕ Adicionar ao Estoque (Sobra)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBatchAdjustMode('SET')}
-                      className={`px-3 py-1 rounded-md transition-all font-semibold ${
-                        batchAdjustMode === 'SET' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
-                      }`}
-                    >
-                      🔢 Contagem Total Apurada (Saldo Final)
+                      🔢 Saldo Final Apurado (ex: 40)
                     </button>
                   </div>
                 </div>
@@ -918,10 +914,11 @@ export const MovementsView: React.FC = () => {
                             <td className="py-2.5 px-4 text-center bg-purple-50/30">
                               <input
                                 id={`batch-input-qty-${item.id}`}
-                                type={isAjuste ? "text" : "number"}
-                                min={isAjuste ? undefined : "0"}
+                                type="number"
+                                step="1"
+                                min={entryType === 'SAIDA' ? "0" : (isAjuste && batchAdjustMode === 'DELTA' ? undefined : "0")}
                                 max={entryType === 'SAIDA' ? item.quantity : 9999}
-                                placeholder={isAjuste ? (batchAdjustMode === 'DELTA' ? "0 ou -10" : String(item.quantity)) : "0"}
+                                placeholder={isAjuste ? (batchAdjustMode === 'DELTA' ? "0 (ex: -2 ou 5)" : String(item.quantity)) : "0"}
                                 value={rawEntry?.qtyStr !== undefined ? rawEntry.qtyStr : (rawEntry?.qty !== undefined && rawEntry?.qty !== 0 ? String(rawEntry.qty) : '')}
                                 onChange={(e) => handleBatchQtyChange(item.id, e.target.value)}
                                 className={`w-28 text-center py-1.5 px-2 font-mono font-bold text-sm border rounded-lg focus:ring-2 focus:ring-[#660099] focus:outline-none transition-all ${
@@ -1097,21 +1094,18 @@ export const MovementsView: React.FC = () => {
               <div>
                 <label className="block text-slate-700 font-bold mb-1.5">
                   {singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any)
-                    ? (singleAdjustMode === 'SUBTRACT' 
-                        ? `Quantidade a Reduzir / Baixar (${selectedSingleItem?.unit || 'un'}) *` 
-                        : singleAdjustMode === 'ADD' 
-                          ? `Quantidade a Adicionar / Sobra (${selectedSingleItem?.unit || 'un'}) *` 
-                          : `Novo Saldo Final Apurado (${selectedSingleItem?.unit || 'un'}) *`)
+                    ? (singleAdjustMode === 'DELTA' ? `Variação do Ajuste (+ / -) (${selectedSingleItem?.unit || 'un'}) *` : `Novo Saldo Final Apurado (${selectedSingleItem?.unit || 'un'}) *`)
                     : `Quantidade (${selectedSingleItem?.unit || 'un'}) *`}
                 </label>
                 {singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any) ? (
                   <input
                     id="single-qty-input"
                     type="number"
-                    min="0"
-                    placeholder={singleAdjustMode === 'SET' ? String(selectedSingleItem?.quantity || 0) : "0"}
+                    step="1"
+                    min={singleAdjustMode === 'DELTA' ? undefined : "0"}
+                    placeholder={singleAdjustMode === 'DELTA' ? "0 (ex: -2 ou 5)" : String(selectedSingleItem?.quantity || 0)}
                     value={singleAdjustQty || ''}
-                    onChange={(e) => setSingleAdjustQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    onChange={(e) => setSingleAdjustQty(parseInt(e.target.value, 10) || 0)}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
                     required
                   />
@@ -1137,30 +1131,21 @@ export const MovementsView: React.FC = () => {
                   <div className="flex flex-wrap bg-white p-0.5 rounded-lg border border-purple-200 shadow-xs">
                     <button
                       type="button"
-                      onClick={() => setSingleAdjustMode('SUBTRACT')}
+                      onClick={() => setSingleAdjustMode('DELTA')}
                       className={`px-2.5 py-1 rounded-md transition-all font-semibold ${
-                        singleAdjustMode === 'SUBTRACT' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
+                        singleAdjustMode === 'DELTA' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
                       }`}
                     >
-                      ➖ Reduzir (Baixa)
+                      📊 Variação (+ / -) (ex: -2 ou +5)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSingleAdjustMode('ADD')}
+                      onClick={() => setSingleAdjustMode('FINAL')}
                       className={`px-2.5 py-1 rounded-md transition-all font-semibold ${
-                        singleAdjustMode === 'ADD' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
+                        singleAdjustMode === 'FINAL' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
                       }`}
                     >
-                      ➕ Adicionar (Sobra)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSingleAdjustMode('SET')}
-                      className={`px-2.5 py-1 rounded-md transition-all font-semibold ${
-                        singleAdjustMode === 'SET' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
-                      }`}
-                    >
-                      🔢 Saldo Final
+                      🔢 Saldo Final Apurado (ex: 40)
                     </button>
                   </div>
                 </div>

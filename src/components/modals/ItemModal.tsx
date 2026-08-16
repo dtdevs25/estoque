@@ -115,36 +115,45 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !locationId) {
       alert('Preencha os campos obrigatórios.');
       return;
     }
 
-    const payload = {
-      type,
-      name: name.trim(),
-      caNumber: caNumber.trim().toUpperCase(),
-      caValidity,
-      category,
-      unit,
-      imageUrl: imageUrl || DEFAULT_SAMPLE_IMAGES[category],
-      quantity: Number(quantity),
-      minQuantity: Number(minQuantity),
-      locationId,
-      costPrice: Number(costPrice) || 0,
-      brand: brand.trim(),
-      description: description.trim(),
-    };
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        type,
+        name: name.trim(),
+        caNumber: caNumber.trim().toUpperCase(),
+        caValidity,
+        category,
+        unit,
+        imageUrl: imageUrl || DEFAULT_SAMPLE_IMAGES[category],
+        quantity: Number(quantity),
+        minQuantity: Number(minQuantity),
+        locationId,
+        costPrice: Number(costPrice) || 0,
+        brand: brand.trim(),
+        description: description.trim(),
+      };
 
-    if (itemToEdit) {
-      updateItem(itemToEdit.id, payload);
-    } else {
-      addItem(payload);
+      if (itemToEdit) {
+        await updateItem(itemToEdit.id, payload);
+      } else {
+        await addItem(payload);
+      }
+
+      onClose();
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao salvar item.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onClose();
   };
 
   return (
@@ -384,9 +393,10 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-[#660099] hover:bg-[#52007a] text-white rounded-xl font-bold shadow-sm shadow-purple-950/20 transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className="px-6 py-2 bg-[#660099] hover:bg-[#52007a] text-white rounded-xl font-bold shadow-sm shadow-purple-950/20 transition-all cursor-pointer disabled:opacity-60"
             >
-              {itemToEdit ? 'Salvar Alterações' : 'Cadastrar EPI'}
+              {isSubmitting ? 'Salvando...' : (itemToEdit ? 'Salvar Alterações' : 'Cadastrar EPI')}
             </button>
           </div>
 

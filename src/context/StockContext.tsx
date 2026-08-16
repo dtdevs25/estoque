@@ -234,19 +234,18 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const addItem = async (data: Omit<EpiItem, 'id' | 'updatedAt'>): Promise<EpiItem> => {
     const item = await api.items.create(data);
-    setItems(prev => [...prev, item]);
+    await loadAll();
     return item;
   };
 
   const updateItem = async (id: string, data: Partial<EpiItem>) => {
-    const item = await api.items.update(id, data);
-    setItems(prev => prev.map(i => i.id === id ? { ...i, ...item } : i));
+    await api.items.update(id, data);
+    await loadAll();
   };
 
   const deleteItem = async (id: string) => {
     await api.items.delete(id);
-    setItems(prev => prev.filter(i => i.id !== id));
-    setMovements(prev => prev.filter(m => m.itemId !== id));
+    await loadAll();
   };
 
   // ── Movements ─────────────────────────────────────────────────────────────

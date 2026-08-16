@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Lock, Mail, Eye, EyeOff, ArrowRight, AlertCircle, KeyRound, CheckCircle2, ShieldCheck, X } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Lock, Mail, Eye, EyeOff, ArrowRight, AlertCircle, KeyRound, CheckCircle2, ShieldCheck, X, Sparkles } from 'lucide-react';
 import { useStock } from '../context/StockContext';
 import * as apiService from '../services/api';
 import logoApp from '../../Logos/logo.png';
@@ -66,40 +67,132 @@ export const LoginView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-slate-50 to-purple-200/60 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Decorative background ambient glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-300/30 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-purple-400/20 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-gradient-to-br from-[#2a0040] via-[#660099] to-[#1a0029] flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Dynamic Animated Floating Background Orbs / Vivo Symbols */}
+      <motion.div
+        animate={{
+          y: [0, -30, 0],
+          x: [0, 20, 0],
+          scale: [1, 1.15, 1],
+          opacity: [0.35, 0.55, 0.35],
+        }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute top-10 left-12 w-96 h-96 bg-purple-500/30 rounded-full blur-[100px] pointer-events-none"
+      />
+      
+      <motion.div
+        animate={{
+          y: [0, 35, 0],
+          x: [0, -25, 0],
+          scale: [1, 1.2, 1],
+          opacity: [0.25, 0.45, 0.25],
+        }}
+        transition={{
+          duration: 10,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute bottom-10 right-12 w-[30rem] h-[30rem] bg-fuchsia-600/25 rounded-full blur-[120px] pointer-events-none"
+      />
 
-      <div className="w-full max-w-md relative z-10">
-        {/* Main Login Card */}
-        <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 sm:p-10 transition-all">
-          {/* Logo Header */}
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-5">
-              <img src={logoVivo} alt="Vivo" className="h-7 object-contain" />
-              <div className="h-6 w-px bg-slate-200" />
-              <img src={logoApp} alt="EstoqueEPI" className="h-10 object-contain" />
+      <motion.div
+        animate={{
+          y: [-15, 20, -15],
+          x: [-10, 15, -10],
+          rotate: [0, 10, 0],
+        }}
+        transition={{
+          duration: 12,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute top-1/3 right-1/4 w-72 h-72 bg-violet-400/20 rounded-full blur-[90px] pointer-events-none"
+      />
+
+      {/* Floating Animated Vivo Decorative Particle Shapes */}
+      <motion.div
+        animate={{
+          y: [0, -15, 0],
+          rotate: [0, 360],
+        }}
+        transition={{
+          duration: 20,
+          repeat: Infinity,
+          ease: 'linear',
+        }}
+        className="absolute top-16 right-20 text-white/10 pointer-events-none hidden md:block"
+      >
+        <Sparkles className="w-24 h-24" />
+      </motion.div>
+
+      <motion.div
+        animate={{
+          y: [0, 20, 0],
+          rotate: [360, 0],
+        }}
+        transition={{
+          duration: 25,
+          repeat: Infinity,
+          ease: 'linear',
+        }}
+        className="absolute bottom-16 left-20 text-white/10 pointer-events-none hidden md:block"
+      >
+        <Sparkles className="w-28 h-28" />
+      </motion.div>
+
+      {/* Main Glassmorphism Login Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="w-full max-w-md relative z-10"
+      >
+        <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl p-8 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.4)] relative overflow-hidden">
+          {/* Subtle Top Glow inside Card */}
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-32 bg-white/20 blur-2xl rounded-full pointer-events-none" />
+
+          {/* White Logos Header */}
+          <div className="text-center mb-8 relative">
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <img
+                src={logoVivo}
+                alt="Vivo"
+                className="h-8 object-contain brightness-0 invert drop-shadow-[0_2px_8px_rgba(255,255,255,0.3)]"
+              />
+              <div className="h-6 w-px bg-white/30" />
+              <img
+                src={logoApp}
+                alt="EstoqueEPI"
+                className="h-11 object-contain brightness-0 invert drop-shadow-[0_2px_8px_rgba(255,255,255,0.3)]"
+              />
             </div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">EstoqueEPI</h1>
-            <p className="text-slate-500 text-sm mt-1">Gestão Inteligente de Estoque e EPIs</p>
+            <h1 className="text-2xl font-bold text-white tracking-tight drop-shadow-sm">EstoqueEPI</h1>
+            <p className="text-purple-200/90 text-sm mt-1 font-medium">Gestão de Equipamentos & Almoxarifado</p>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleLoginSubmit} className="space-y-5">
+          <form onSubmit={handleLoginSubmit} className="space-y-5 relative">
             {errorMessage && (
-              <div className="flex items-center gap-2.5 bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-sm animate-fadeIn">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2.5 bg-rose-500/20 border border-rose-400/40 text-rose-100 px-4 py-3 rounded-xl text-sm backdrop-blur-md"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-300" />
                 <span>{errorMessage}</span>
-              </div>
+              </motion.div>
             )}
 
             <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-1.5">
+              <label className="block text-purple-100 text-xs font-bold uppercase tracking-wider mb-2">
                 E-mail
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-200" />
                 <input
                   id="login-email"
                   type="email"
@@ -107,18 +200,18 @@ export const LoginView: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu.email@empresa.com"
                   autoComplete="email"
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#660099] focus:border-transparent transition-all text-sm font-medium"
+                  className="w-full pl-10 pr-4 py-3.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-200/50 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/50 transition-all text-sm font-medium"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-1.5">
+              <label className="block text-purple-100 text-xs font-bold uppercase tracking-wider mb-2">
                 Senha
               </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-200" />
                 <input
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
@@ -126,13 +219,13 @@ export const LoginView: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="w-full pl-10 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#660099] focus:border-transparent transition-all text-sm font-medium"
+                  className="w-full pl-10 pr-12 py-3.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-200/50 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/50 transition-all text-sm font-medium"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1 cursor-pointer"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-purple-200 hover:text-white transition-colors p-1 cursor-pointer"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -146,9 +239,9 @@ export const LoginView: React.FC = () => {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-[#660099] focus:ring-[#660099] cursor-pointer"
+                  className="w-4 h-4 rounded border-white/30 bg-white/10 text-purple-500 focus:ring-purple-400 cursor-pointer"
                 />
-                <span className="text-xs text-slate-600 font-medium">Lembrar-me</span>
+                <span className="text-xs text-purple-200 font-medium">Lembrar-me</span>
               </label>
 
               <button
@@ -159,7 +252,7 @@ export const LoginView: React.FC = () => {
                   setForgotError('');
                   setForgotEmail('');
                 }}
-                className="text-xs text-[#660099] font-bold hover:underline transition-colors cursor-pointer"
+                className="text-xs text-purple-200 hover:text-white font-bold underline transition-colors cursor-pointer"
               >
                 Esqueceu a senha?
               </button>
@@ -169,10 +262,10 @@ export const LoginView: React.FC = () => {
               id="btn-login"
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 bg-[#660099] hover:bg-[#52007a] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer mt-2"
+              className="w-full py-3.5 bg-white text-[#660099] font-extrabold rounded-xl transition-all flex items-center justify-center gap-2 shadow-xl hover:bg-purple-50 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer mt-3 text-sm tracking-wide"
             >
               {isLoading ? (
-                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="w-5 h-5 border-2 border-[#660099]/30 border-t-[#660099] rounded-full animate-spin" />
               ) : (
                 <>
                   <span>Entrar no Sistema</span>
@@ -182,20 +275,24 @@ export const LoginView: React.FC = () => {
             </button>
           </form>
 
-          {/* Footer badge */}
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 border border-slate-200/60 rounded-full text-xs text-slate-500 font-medium">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#660099]" />
-              <span>Ambiente Seguro e Autenticado</span>
+          {/* Security Badge Footer */}
+          <div className="mt-8 pt-6 border-t border-white/15 text-center">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/10 border border-white/20 rounded-full text-xs text-purple-100 font-medium backdrop-blur-md">
+              <ShieldCheck className="w-4 h-4 text-purple-300" />
+              <span>Acesso Seguro com Criptografia</span>
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Standardized Forgot Password Modal */}
       {isForgotModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+          >
             {/* Standardized Purple Header */}
             <div className="bg-[#660099] px-6 py-4 flex items-center justify-between">
               <h3 className="font-bold text-white text-lg flex items-center gap-2">
@@ -219,7 +316,7 @@ export const LoginView: React.FC = () => {
                   </div>
                   <h4 className="text-lg font-bold text-slate-800">E-mail de recuperação enviado!</h4>
                   <p className="text-slate-600 text-sm max-w-xs mx-auto">
-                    Se o e-mail informado estiver cadastrado em nosso sistema, você receberá o link para redefinição em instantes.
+                    Se o e-mail informado estiver cadastrado, você receberá o link para redefinição em instantes.
                   </p>
                   <div className="pt-4">
                     <button
@@ -280,7 +377,7 @@ export const LoginView: React.FC = () => {
                 </form>
               )}
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
     </div>

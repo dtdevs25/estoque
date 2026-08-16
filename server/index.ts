@@ -39,18 +39,7 @@ app.set('trust proxy', 1);
 // ─── Security headers ──────────────────────────────────────────────────────
 app.use(
   helmet({
-    contentSecurityPolicy: isProd ? {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', process.env.S3_ENDPOINT || ''],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'", 'data:'],
-        objectSrc: ["'none'"],
-        frameAncestors: ["'none'"],
-      },
-    } : false,
+    contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     hsts: isProd ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,

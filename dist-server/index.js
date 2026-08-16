@@ -933,35 +933,39 @@ movementsRouter.post("/exit", requireAdminOrController, async (req, res) => {
 movementsRouter.post("/batch", requireAdminOrController, async (req, res) => {
   try {
     const { locationId, entries, reason, employeeName, employeeRole, employeeRegistration, isDailyClosing, notes } = req.body;
-    const location = await prisma.location.findUnique({ where: { id: locationId } });
-    if (!location) {
-      res.status(404).json({ message: "Localidade n\xE3o encontrada." });
-      return;
+    let fallbackLocationName = "Almoxarifado Geral";
+    if (locationId && locationId !== "ALL") {
+      const location = await prisma.location.findUnique({ where: { id: locationId } });
+      if (location) fallbackLocationName = location.name;
     }
     const results = [];
     for (const entry of entries) {
-      const item = await getOrCreateItemForLocation(entry.itemId, locationId);
+      const targetLoc = locationId && locationId !== "ALL" ? locationId : void 0;
+      const item = await getOrCreateItemForLocation(entry.itemId, targetLoc);
       if (!item || entry.quantity <= 0) continue;
+      const mType = entry.type === "ENTRADA" ? "ENTRADA" : "SAIDA";
       const prev = item.quantity;
-      const newQty = prev - entry.quantity;
-      if (newQty < 0) continue;
+      const newQty = mType === "ENTRADA" ? prev + entry.quantity : prev - entry.quantity;
+      if (mType === "SAIDA" && newQty < 0) continue;
+      const itemLoc = item.locationId ? await prisma.location.findUnique({ where: { id: item.locationId } }) : null;
+      const locName = itemLoc?.name || fallbackLocationName;
       const [updated, movement] = await prisma.$transaction([
         prisma.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } }),
         prisma.stockMovement.create({
           data: {
-            type: "SAIDA",
+            type: mType,
             quantity: entry.quantity,
             previousQuantity: prev,
             newQuantity: newQty,
             itemId: item.id,
             itemName: item.name,
-            locationId,
-            locationName: location.name,
+            locationId: item.locationId || locationId || "ALL",
+            locationName: locName,
             employeeName,
             employeeRole,
             employeeRegistration,
             reason: isDailyClosing ? `Baixa Di\xE1ria: ${reason}` : reason,
-            notes,
+            notes: entry.notes || notes,
             userId: req.user.id
           }
         })

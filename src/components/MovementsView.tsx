@@ -778,8 +778,8 @@ export const MovementsView: React.FC = () => {
                 </div>
               )}
 
-              {/* Submit Action Bar */}
-              <div className="p-4 bg-[#FAF7FC] border-t border-purple-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Sticky Submit Action Bar */}
+              <div className="sticky bottom-4 z-40 bg-white/95 backdrop-blur-md border border-purple-200 shadow-2xl rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 my-4">
                 <div className="text-xs text-slate-600">
                   Total selecionado para gravação: <strong className="text-[#660099] font-mono text-sm">{activeBatchTotalUnits} unidades</strong> em <strong className="text-slate-900">{activeBatchCount} EPIs</strong>.
                 </div>
@@ -788,18 +788,18 @@ export const MovementsView: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleClearBatchForm}
-                    className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
+                    className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
                   >
-                    Cancelar
+                    Limpar
                   </button>
 
                   <button
                     id="btn-submit-batch-movement"
                     type="submit"
                     disabled={activeBatchCount === 0}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-[#660099] hover:bg-[#52007a] disabled:bg-slate-300 disabled:text-slate-500 text-white rounded-xl font-bold text-sm shadow-md shadow-purple-950/20 transition-all active:scale-95 cursor-pointer"
+                    className="flex items-center gap-2 px-6 py-3 bg-[#660099] hover:bg-[#52007a] disabled:bg-slate-300 disabled:text-slate-500 text-white rounded-xl font-extrabold text-sm shadow-lg shadow-purple-950/20 transition-all active:scale-95 cursor-pointer"
                   >
-                    <PackageCheck className="w-4 h-4" />
+                    <PackageCheck className="w-5 h-5" />
                     <span>Concluir Lançamento em Lote</span>
                   </button>
                 </div>

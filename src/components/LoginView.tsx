@@ -67,7 +67,7 @@ export const LoginView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#2a0040] via-[#660099] to-[#1a0029] flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#2a0040] via-[#660099] to-[#1a0029] flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
       {/* Background Ambient Glows */}
       <motion.div
         animate={{
@@ -99,158 +99,222 @@ export const LoginView: React.FC = () => {
         className="absolute bottom-10 right-12 w-[30rem] h-[30rem] bg-fuchsia-600/25 rounded-full blur-[120px] pointer-events-none"
       />
 
-      {/* Floating Animated Vivo Logos across background */}
+      {/* Array of 12 Floating Animated Vivo Logos across background */}
       <motion.img
         src={logoVivo}
         alt=""
         animate={{
-          y: [0, -45, 0],
-          x: [0, 30, 0],
-          rotate: [-8, 12, -8],
-          scale: [1, 1.1, 1],
+          y: [0, -50, 0],
+          x: [0, 35, 0],
+          rotate: [-10, 15, -10],
+          scale: [1, 1.15, 1],
         }}
         transition={{
-          duration: 11,
+          duration: 10,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        className="absolute top-8 left-10 h-28 opacity-20 brightness-0 invert pointer-events-none"
+        className="absolute top-6 left-8 h-32 opacity-25 brightness-0 invert pointer-events-none"
       />
 
       <motion.img
         src={logoVivo}
         alt=""
         animate={{
-          y: [0, 50, 0],
-          x: [0, -35, 0],
-          rotate: [12, -12, 12],
-          scale: [0.9, 1.15, 0.9],
-        }}
-        transition={{
-          duration: 14,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-        className="absolute bottom-12 right-14 h-36 opacity-20 brightness-0 invert pointer-events-none"
-      />
-
-      <motion.img
-        src={logoVivo}
-        alt=""
-        animate={{
-          y: [-25, 35, -25],
-          x: [-20, 25, -20],
-          rotate: [0, -20, 0],
-        }}
-        transition={{
-          duration: 16,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-        className="absolute top-1/4 right-16 h-24 opacity-15 brightness-0 invert pointer-events-none"
-      />
-
-      <motion.img
-        src={logoVivo}
-        alt=""
-        animate={{
-          y: [35, -25, 35],
-          x: [25, -20, 25],
-          rotate: [20, 0, 20],
+          y: [0, 55, 0],
+          x: [0, -40, 0],
+          rotate: [15, -15, 15],
+          scale: [0.9, 1.2, 0.9],
         }}
         transition={{
           duration: 13,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        className="absolute bottom-1/3 left-12 h-20 opacity-15 brightness-0 invert pointer-events-none"
+        className="absolute bottom-8 right-10 h-40 opacity-25 brightness-0 invert pointer-events-none"
       />
 
       <motion.img
         src={logoVivo}
         alt=""
         animate={{
-          y: [-15, 20, -15],
-          x: [15, -15, 15],
-          rotate: [-15, 15, -15],
-          scale: [0.85, 1.05, 0.85],
-        }}
-        transition={{
-          duration: 9,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-        className="absolute top-1/2 left-1/3 h-16 opacity-10 brightness-0 invert pointer-events-none hidden md:block"
-      />
-
-      <motion.img
-        src={logoVivo}
-        alt=""
-        animate={{
-          y: [20, -20, 20],
-          x: [-10, 15, -10],
-          rotate: [10, -10, 10],
-        }}
-        transition={{
-          duration: 17,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-        className="absolute top-16 right-1/3 h-20 opacity-12 brightness-0 invert pointer-events-none hidden md:block"
-      />
-
-      <motion.img
-        src={logoVivo}
-        alt=""
-        animate={{
-          y: [-30, 25, -30],
-          x: [25, -25, 25],
-          scale: [1.1, 0.9, 1.1],
+          y: [-30, 40, -30],
+          x: [-25, 30, -25],
+          rotate: [0, -25, 0],
         }}
         transition={{
           duration: 15,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 h-24 opacity-15 brightness-0 invert pointer-events-none"
+        className="absolute top-1/4 right-12 h-28 opacity-20 brightness-0 invert pointer-events-none"
       />
 
-      {/* Main Slim Glassmorphism Login Card */}
+      <motion.img
+        src={logoVivo}
+        alt=""
+        animate={{
+          y: [40, -30, 40],
+          x: [30, -25, 30],
+          rotate: [25, 0, 25],
+        }}
+        transition={{
+          duration: 12,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute bottom-1/4 left-8 h-24 opacity-20 brightness-0 invert pointer-events-none"
+      />
+
+      <motion.img
+        src={logoVivo}
+        alt=""
+        animate={{
+          y: [-20, 25, -20],
+          x: [20, -20, 20],
+          rotate: [-18, 18, -18],
+          scale: [0.85, 1.1, 0.85],
+        }}
+        transition={{
+          duration: 9,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute top-1/2 left-1/4 h-20 opacity-18 brightness-0 invert pointer-events-none"
+      />
+
+      <motion.img
+        src={logoVivo}
+        alt=""
+        animate={{
+          y: [25, -25, 25],
+          x: [-15, 20, -15],
+          rotate: [12, -12, 12],
+        }}
+        transition={{
+          duration: 16,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute top-12 right-1/3 h-24 opacity-18 brightness-0 invert pointer-events-none"
+      />
+
+      <motion.img
+        src={logoVivo}
+        alt=""
+        animate={{
+          y: [-35, 30, -35],
+          x: [30, -30, 30],
+          scale: [1.15, 0.85, 1.15],
+        }}
+        transition={{
+          duration: 14,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 h-28 opacity-20 brightness-0 invert pointer-events-none"
+      />
+
+      <motion.img
+        src={logoVivo}
+        alt=""
+        animate={{
+          y: [15, -25, 15],
+          x: [-20, 15, -20],
+          rotate: [-8, 8, -8],
+        }}
+        transition={{
+          duration: 11,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute top-1/3 left-6 h-16 opacity-15 brightness-0 invert pointer-events-none"
+      />
+
+      <motion.img
+        src={logoVivo}
+        alt=""
+        animate={{
+          y: [-25, 20, -25],
+          x: [15, -20, 15],
+          rotate: [18, -10, 18],
+        }}
+        transition={{
+          duration: 13.5,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute bottom-1/3 right-8 h-22 opacity-18 brightness-0 invert pointer-events-none"
+      />
+
+      <motion.img
+        src={logoVivo}
+        alt=""
+        animate={{
+          y: [20, -30, 20],
+          x: [10, -15, 10],
+          rotate: [-15, 20, -15],
+        }}
+        transition={{
+          duration: 17,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute top-4 left-1/2 h-18 opacity-15 brightness-0 invert pointer-events-none"
+      />
+
+      <motion.img
+        src={logoVivo}
+        alt=""
+        animate={{
+          y: [-15, 35, -15],
+          x: [-15, 25, -15],
+          rotate: [10, -20, 10],
+        }}
+        transition={{
+          duration: 12.5,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute bottom-20 left-1/3 h-20 opacity-15 brightness-0 invert pointer-events-none"
+      />
+
+      {/* Main Glassmorphism Login Card — Taller Height */}
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
         className="w-full max-w-sm relative z-10"
       >
-        <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.4)] relative overflow-hidden">
+        <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl p-8 sm:p-10 min-h-[500px] flex flex-col justify-between shadow-[0_25px_60px_rgba(0,0,0,0.5)] relative overflow-hidden">
           {/* Subtle Top Glow inside Card */}
           <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-32 bg-white/20 blur-2xl rounded-full pointer-events-none" />
 
           {/* White Logos Header (without EstoqueEPI text) */}
-          <div className="text-center mb-6 relative">
-            <div className="flex items-center justify-center gap-3 mb-2">
+          <div className="text-center pt-2 pb-2 relative">
+            <div className="flex items-center justify-center gap-3.5 mb-3">
               <img
                 src={logoVivo}
                 alt="Vivo"
-                className="h-8 object-contain brightness-0 invert drop-shadow-[0_2px_8px_rgba(255,255,255,0.3)]"
+                className="h-9 object-contain brightness-0 invert drop-shadow-[0_2px_10px_rgba(255,255,255,0.4)]"
               />
-              <div className="h-6 w-px bg-white/30" />
+              <div className="h-7 w-px bg-white/30" />
               <img
                 src={logoApp}
                 alt="Logo"
-                className="h-10 object-contain brightness-0 invert drop-shadow-[0_2px_8px_rgba(255,255,255,0.3)]"
+                className="h-11 object-contain brightness-0 invert drop-shadow-[0_2px_10px_rgba(255,255,255,0.4)]"
               />
             </div>
             <p className="text-purple-200/90 text-sm font-semibold tracking-wide">Gestão de EPI</p>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleLoginSubmit} className="space-y-4 relative">
+          <form onSubmit={handleLoginSubmit} className="space-y-5 relative my-auto py-2">
             {errorMessage && (
               <motion.div
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 bg-rose-500/20 border border-rose-400/40 text-rose-100 px-3.5 py-2.5 rounded-xl text-xs backdrop-blur-md"
+                className="flex items-center gap-2.5 bg-rose-500/20 border border-rose-400/40 text-rose-100 px-4 py-3 rounded-xl text-xs backdrop-blur-md"
               >
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-300" />
                 <span>{errorMessage}</span>
@@ -258,7 +322,7 @@ export const LoginView: React.FC = () => {
             )}
 
             <div>
-              <label className="block text-purple-100 text-[11px] font-bold uppercase tracking-wider mb-1.5">
+              <label className="block text-purple-100 text-xs font-bold uppercase tracking-wider mb-2">
                 E-mail
               </label>
               <div className="relative">
@@ -270,14 +334,14 @@ export const LoginView: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu.email@empresa.com"
                   autoComplete="email"
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-200/50 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/50 transition-all text-sm font-medium"
+                  className="w-full pl-10 pr-4 py-3.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-200/50 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/50 transition-all text-sm font-medium"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-purple-100 text-[11px] font-bold uppercase tracking-wider mb-1.5">
+              <label className="block text-purple-100 text-xs font-bold uppercase tracking-wider mb-2">
                 Senha
               </label>
               <div className="relative">
@@ -289,7 +353,7 @@ export const LoginView: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-200/50 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/50 transition-all text-sm font-medium"
+                  className="w-full pl-10 pr-12 py-3.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-200/50 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white/50 transition-all text-sm font-medium"
                   required
                 />
                 <button
@@ -309,7 +373,7 @@ export const LoginView: React.FC = () => {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded border-white/30 bg-white/10 text-purple-500 focus:ring-purple-400 cursor-pointer"
+                  className="w-4 h-4 rounded border-white/30 bg-white/10 text-purple-500 focus:ring-purple-400 cursor-pointer"
                 />
                 <span className="text-xs text-purple-200 font-medium">Lembrar-me</span>
               </label>
@@ -332,7 +396,7 @@ export const LoginView: React.FC = () => {
               id="btn-login"
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 bg-white text-[#660099] font-extrabold rounded-xl transition-all flex items-center justify-center gap-2 shadow-xl hover:bg-purple-50 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer mt-2 text-sm tracking-wide"
+              className="w-full py-3.5 bg-white text-[#660099] font-extrabold rounded-xl transition-all flex items-center justify-center gap-2 shadow-xl hover:bg-purple-50 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer mt-3 text-sm tracking-wide"
             >
               {isLoading ? (
                 <span className="w-5 h-5 border-2 border-[#660099]/30 border-t-[#660099] rounded-full animate-spin" />
@@ -356,7 +420,7 @@ export const LoginView: React.FC = () => {
             className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
           >
             {/* Standardized Purple Header */}
-            <div className="bg-[#660099] px-5 py-3.5 flex items-center justify-between">
+            <div className="bg-[#660099] px-5 py-4 flex items-center justify-between">
               <h3 className="font-bold text-white text-base flex items-center gap-2">
                 <KeyRound className="w-4 h-4" />
                 <span>Recuperar Senha</span>
@@ -370,7 +434,7 @@ export const LoginView: React.FC = () => {
             </div>
 
             {/* Modal Body */}
-            <div className="p-5">
+            <div className="p-6">
               {forgotSuccess ? (
                 <div className="text-center py-3 space-y-3">
                   <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
@@ -383,14 +447,14 @@ export const LoginView: React.FC = () => {
                   <div className="pt-2">
                     <button
                       onClick={() => setIsForgotModalOpen(false)}
-                      className="px-5 py-2 bg-[#660099] text-white font-bold text-sm rounded-xl hover:bg-[#52007a] transition-all shadow-md cursor-pointer"
+                      className="px-5 py-2.5 bg-[#660099] text-white font-bold text-sm rounded-xl hover:bg-[#52007a] transition-all shadow-md cursor-pointer"
                     >
                       Voltar ao Login
                     </button>
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleForgotPasswordSubmit} className="space-y-3.5">
+                <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
                   <p className="text-xs text-slate-600">
                     Digite seu e-mail cadastrado. Enviaremos as instruções para você redefinir sua senha com segurança.
                   </p>
@@ -413,7 +477,7 @@ export const LoginView: React.FC = () => {
                         value={forgotEmail}
                         onChange={(e) => setForgotEmail(e.target.value)}
                         placeholder="seu.email@empresa.com"
-                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-[#660099] focus:outline-none"
+                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-[#660099] focus:outline-none"
                         required
                       />
                     </div>

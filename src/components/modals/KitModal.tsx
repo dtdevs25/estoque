@@ -120,7 +120,9 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       alert('Informe o nome do Kit de EPI.');
@@ -132,22 +134,35 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
       return;
     }
 
-    const payload = {
-      name: name.trim(),
-      code: code.trim().toUpperCase() || 'KIT-VIV-' + Math.floor(100 + Math.random() * 900),
-      category: category.trim(),
-      type,
-      description: description.trim(),
-      components,
-    };
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        name: name.trim(),
+        code: code.trim().toUpperCase() || 'KIT-VIV-' + Math.floor(100 + Math.random() * 900),
+        category: category.trim(),
+        type,
+        description: description.trim(),
+        components: components.map(c => ({
+          itemId: c.itemId,
+          itemName: c.itemName,
+          quantity: c.requiredQuantity || c.quantity || 1,
+          requiredQuantity: c.requiredQuantity || c.quantity || 1,
+          unit: c.unit || 'un',
+        })),
+      };
 
-    if (kitToEdit) {
-      updateKit(kitToEdit.id, payload);
-    } else {
-      addKit(payload);
+      if (kitToEdit) {
+        await updateKit(kitToEdit.id, payload);
+      } else {
+        await addKit(payload);
+      }
+
+      onClose();
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao salvar Kit.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onClose();
   };
 
   return (

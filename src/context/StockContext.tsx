@@ -301,18 +301,18 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const addKit = async (data: Omit<EpiKit, 'id' | 'createdAt' | 'updatedAt'>): Promise<EpiKit> => {
     const kit = await api.kits.create(data);
-    setKits(prev => [...prev, kit]);
+    await loadAll();
     return kit;
   };
 
   const updateKit = async (id: string, data: Partial<EpiKit>) => {
-    const kit = await api.kits.update(id, data);
-    setKits(prev => prev.map(k => k.id === id ? kit : k));
+    await api.kits.update(id, data);
+    await loadAll();
   };
 
   const deleteKit = async (id: string) => {
     await api.kits.delete(id);
-    setKits(prev => prev.filter(k => k.id !== id));
+    await loadAll();
   };
 
   const deliverKit = async (params: {

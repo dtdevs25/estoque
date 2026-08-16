@@ -10,7 +10,7 @@ kitsRouter.get('/', async (_req, res) => {
   try {
     const kits = await prisma.epiKit.findMany({
       include: { components: true },
-      orderBy: { name: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
     res.json(kits);
   } catch {
@@ -29,12 +29,15 @@ kitsRouter.post('/', requireAdminOrController, async (req, res) => {
 
     const kit = await prisma.epiKit.create({
       data: {
-        name, description, type: type || 'EPI_EPC', imageUrl,
+        name,
+        description,
+        type: type || 'EPI_EPC',
+        imageUrl,
         components: {
           create: components.map((c: any) => ({
-            itemId: c.itemId,
-            itemName: c.itemName,
-            quantity: c.quantity,
+            itemId: c.itemId || '',
+            itemName: c.itemName || 'Item',
+            quantity: Number(c.quantity || c.requiredQuantity || 1),
           })),
         },
       },
@@ -42,7 +45,7 @@ kitsRouter.post('/', requireAdminOrController, async (req, res) => {
     });
     res.status(201).json(kit);
   } catch (e) {
-    console.error(e);
+    console.error('Error creating kit:', e);
     res.status(500).json({ message: 'Erro ao criar kit.' });
   }
 });
@@ -58,19 +61,23 @@ kitsRouter.put('/:id', requireAdminOrController, async (req, res) => {
     const kit = await prisma.epiKit.update({
       where: { id: req.params.id },
       data: {
-        name, description, type, imageUrl,
+        name,
+        description,
+        type,
+        imageUrl,
         components: {
           create: components?.map((c: any) => ({
-            itemId: c.itemId,
-            itemName: c.itemName,
-            quantity: c.quantity,
+            itemId: c.itemId || '',
+            itemName: c.itemName || 'Item',
+            quantity: Number(c.quantity || c.requiredQuantity || 1),
           })) || [],
         },
       },
       include: { components: true },
     });
     res.json(kit);
-  } catch {
+  } catch (e) {
+    console.error('Error updating kit:', e);
     res.status(500).json({ message: 'Erro ao atualizar kit.' });
   }
 });

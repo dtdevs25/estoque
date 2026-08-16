@@ -20,19 +20,28 @@ function getBaseEmailHtml(title: string, subtitle: string, contentHtml: string, 
   <title>${title}</title>
 </head>
 <body style="margin:0;padding:0;background-color:#F4F1F8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
-  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#F4F1F8;padding:40px 10px;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#F4F1F8" style="background-color:#F4F1F8;padding:40px 10px;">
     <tr>
       <td align="center">
-        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:580px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px rgba(102,0,153,0.08);border:1px solid #E9E1F0;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:580px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px rgba(102,0,153,0.12);border:1px solid #E9E1F0;">
           
-          <!-- Header Banner -->
+          <!-- Header Banner with Solid Vivo Purple Fallback -->
           <tr>
-            <td style="background:linear-gradient(135deg, #4B0072 0%, #660099 60%, #8800CC 100%);padding:36px 32px;text-align:center;">
-              <div style="display:inline-block;background:rgba(255,255,255,0.15);padding:6px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.25);margin-bottom:14px;">
-                <span style="color:#ffffff;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">EstoqueEPI Vivo</span>
-              </div>
-              <h1 style="color:#ffffff;font-size:24px;font-weight:800;margin:0 0 8px 0;letter-spacing:-0.5px;">${title}</h1>
-              <p style="color:#E9D5FF;font-size:14px;margin:0;font-weight:400;">${subtitle}</p>
+            <td bgcolor="#660099" style="background-color:#660099;background:linear-gradient(135deg, #4B0072 0%, #660099 100%);padding:36px 32px;text-align:center;">
+              
+              <!-- Brand Emblem Pill -->
+              <table border="0" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 16px auto;">
+                <tr>
+                  <td bgcolor="#4B0072" style="background-color:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 18px;">
+                    <span style="color:#ffffff;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">
+                      VIVO &bull; SG4 &nbsp;|&nbsp; EstoqueEPI
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <h1 style="color:#ffffff;font-family:Arial,sans-serif;font-size:24px;font-weight:bold;margin:0 0 8px 0;letter-spacing:-0.5px;">${title}</h1>
+              <p style="color:#E9D5FF;font-family:Arial,sans-serif;font-size:14px;margin:0;font-weight:normal;">${subtitle}</p>
             </td>
           </tr>
 
@@ -41,24 +50,38 @@ function getBaseEmailHtml(title: string, subtitle: string, contentHtml: string, 
             <td style="padding:36px 32px;">
               ${contentHtml}
 
-              <!-- CTA Button Container -->
-              <div style="text-align:center;margin:32px 0;">
-                <a href="${ctaUrl}" target="_blank" style="display:inline-block;background:linear-gradient(135deg, #660099 0%, #4B0072 100%);color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 32px;border-radius:12px;box-shadow:0 4px 14px rgba(102,0,153,0.35);">
-                  ${ctaText} →
-                </a>
-              </div>
+              <!-- Bulletproof Table-Based CTA Button (Solid Vivo Purple) -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:32px 0;">
+                <tr>
+                  <td align="center">
+                    <table border="0" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td align="center" bgcolor="#660099" style="background-color:#660099;border-radius:12px;padding:16px 36px;box-shadow:0 4px 14px rgba(102,0,153,0.4);">
+                          <a href="${ctaUrl}" target="_blank" style="color:#ffffff;background-color:#660099;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;display:inline-block;">
+                            ${ctaText} &rarr;
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
 
               <!-- Security Notice -->
-              <div style="background-color:#FAF7FC;border:1px solid #E9E1F0;border-radius:12px;padding:16px 20px;margin-top:28px;">
-                <p style="margin:0 0 6px 0;font-size:12px;font-weight:700;color:#660099;">🔒 Informação de Segurança</p>
-                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5;">
-                  Este link é individual e seguro. Por motivos de segurança, ele expira automaticamente. Se você não solicitou este e-mail, nenhuma ação é necessária.
-                </p>
-              </div>
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" bgcolor="#FAF7FC" style="background-color:#FAF7FC;border:1px solid #E9E1F0;border-radius:12px;margin-top:28px;">
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <p style="margin:0 0 6px 0;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;color:#660099;">🔒 Informação de Segurança Vivo SG4</p>
+                    <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#64748b;line-height:1.5;">
+                      Este link é individual, confidencial e seguro. Por motivos de proteção de dados SG4 Vivo, ele possui validade temporária. Se você não solicitou este e-mail, por favor desconsidere-o.
+                    </p>
+                  </td>
+                </tr>
+              </table>
 
               <!-- URL Fallback -->
-              <div style="margin-top:24px;padding-top:20px;border-top:1px solid #F1F5F9;font-size:11px;color:#94a3b8;word-break:break-all;">
-                Se o botão acima não funcionar, copie e cole o seguinte link no seu navegador:<br>
+              <div style="margin-top:24px;padding-top:20px;border-top:1px solid #F1F5F9;font-family:Arial,sans-serif;font-size:11px;color:#94a3b8;word-break:break-all;">
+                Se o botão acima não abrir, copie e cole o seguinte endereço no seu navegador:<br>
                 <a href="${ctaUrl}" style="color:#660099;text-decoration:underline;">${ctaUrl}</a>
               </div>
             </td>
@@ -66,10 +89,10 @@ function getBaseEmailHtml(title: string, subtitle: string, contentHtml: string, 
 
           <!-- Footer -->
           <tr>
-            <td style="background-color:#FAF7FC;padding:20px 32px;border-top:1px solid #E9E1F0;text-align:center;">
-              <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.6;">
-                <strong>EstoqueEPI Vivo</strong> — Controle de Equipamentos de Proteção<br>
-                Mensagem gerada automaticamente pelo sistema. Por favor, não responda a este e-mail.
+            <td bgcolor="#FAF7FC" style="background-color:#FAF7FC;padding:20px 32px;border-top:1px solid #E9E1F0;text-align:center;">
+              <p style="margin:0;font-family:Arial,sans-serif;font-size:11px;color:#94a3b8;line-height:1.6;">
+                <strong style="color:#660099;">EstoqueEPI &bull; Vivo SG4</strong> — Sistema de Gestão de Equipamentos de Proteção<br>
+                Mensagem enviada automaticamente. Favor não responder a este remetente.
               </p>
             </td>
           </tr>

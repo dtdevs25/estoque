@@ -44,9 +44,9 @@ export const MovementsView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'batch' | 'single' | 'history'>(isViewer ? 'history' : 'batch');
 
   // ---- State for Batch / Daily Closing Mode ----
-  const [batchLocationId, setBatchLocationId] = useState<string>(() => {
-    return selectedLocationId !== 'ALL' ? selectedLocationId : (locations[0]?.id || '');
-  });
+  const [batchLocationId, setBatchLocationId] = useState<string>(() => selectedLocationId);
+  const [batchCategoryFilter, setBatchCategoryFilter] = useState<'ALL' | 'EPI_EPC' | 'ERGONOMICO'>('ALL');
+  const [batchSearchQuery, setBatchSearchQuery] = useState<string>('');
   const [batchDate, setBatchDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [batchReason, setBatchReason] = useState('Entregas aos Colaboradores');
   const [batchEmployee, setBatchEmployee] = useState('Almoxarife Vivo');
@@ -57,10 +57,46 @@ export const MovementsView: React.FC = () => {
   const [batchSuccessMsg, setBatchSuccessMsg] = useState<string | null>(null);
   const [batchErrorMsg, setBatchErrorMsg] = useState<string | null>(null);
 
-  // Items for batch location
+  // Items for batch location & category filter
   const batchLocationItems = useMemo(() => {
-    return items.filter(i => i.locationId === batchLocationId);
-  }, [items, batchLocationId]);
+    return (items || []).filter(i => {
+      if (!i) return false;
+      // Location Filter
+      const matchLoc = batchLocationId === 'ALL' || !batchLocationId || i.locationId === batchLocationId || i.locationId === 'ALL';
+      
+      // Category Filter
+      let matchCat = true;
+      if (batchCategoryFilter === 'ERGONOMICO') {
+        matchCat = i.type === 'ERGONOMICO' || (i.category || '').toLowerCase().includes('ergonômic') || (i.category || '').toLowerCase().includes('ergonomic');
+      } else if (batchCategoryFilter === 'EPI_EPC') {
+        matchCat = i.type !== 'ERGONOMICO' && !(i.category || '').toLowerCase().includes('ergonômic') && !(i.category || '').toLowerCase().includes('ergonomic');
+      }
+
+      // Search Query Filter
+      const q = (batchSearchQuery || '').trim().toLowerCase();
+      const matchSearch = !q || (i.name || '').toLowerCase().includes(q) || (i.caNumber || '').toLowerCase().includes(q);
+
+      return matchLoc && matchCat && matchSearch;
+    });
+  }, [items, batchLocationId, batchCategoryFilter, batchSearchQuery]);
+
+  const handleBatchReasonChange = (newReason: string) => {
+    setBatchReason(newReason);
+    const isEntrada = newReason.toLowerCase().includes('recebimento') || newReason.toLowerCase().includes('entrada');
+    const targetType: MovementType = isEntrada ? 'ENTRADA' : 'SAIDA';
+    
+    setBatchDefaultType(targetType);
+    setBatchEntries(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(key => {
+        next[key] = {
+          ...next[key],
+          type: targetType,
+        };
+      });
+      return next;
+    });
+  };
 
   const handleBatchQtyChange = (itemId: string, qtyStr: string) => {
     const val = parseInt(qtyStr, 10);
@@ -185,6 +221,8 @@ export const MovementsView: React.FC = () => {
 
   // ---- State for Single / Unitary Mode ----
   const [singleItemId, setSingleItemId] = useState<string>(() => items[0]?.id || '');
+  const [singleLocFilter, setSingleLocFilter] = useState<string>('ALL');
+  const [singleCategoryFilter, setSingleCategoryFilter] = useState<'ALL' | 'EPI_EPC' | 'ERGONOMICO'>('ALL');
   const [singleType, setSingleType] = useState<MovementType>('SAIDA');
   const [singleQty, setSingleQty] = useState<number>(1);
   const [singleReason, setSingleReason] = useState<string>('Entregas aos Colaboradores');
@@ -195,6 +233,26 @@ export const MovementsView: React.FC = () => {
   const [singleNotes, setSingleNotes] = useState<string>('');
   const [singleSuccessMsg, setSingleSuccessMsg] = useState<string | null>(null);
   const [singleErrorMsg, setSingleErrorMsg] = useState<string | null>(null);
+
+  const filteredSingleItems = useMemo(() => {
+    return (items || []).filter(i => {
+      if (!i) return false;
+      const matchLoc = singleLocFilter === 'ALL' || !singleLocFilter || i.locationId === singleLocFilter || i.locationId === 'ALL';
+      let matchCat = true;
+      if (singleCategoryFilter === 'ERGONOMICO') {
+        matchCat = i.type === 'ERGONOMICO' || (i.category || '').toLowerCase().includes('ergonômic') || (i.category || '').toLowerCase().includes('ergonomic');
+      } else if (singleCategoryFilter === 'EPI_EPC') {
+        matchCat = i.type !== 'ERGONOMICO' && !(i.category || '').toLowerCase().includes('ergonômic') && !(i.category || '').toLowerCase().includes('ergonomic');
+      }
+      return matchLoc && matchCat;
+    });
+  }, [items, singleLocFilter, singleCategoryFilter]);
+
+  const handleSingleReasonChange = (newReason: string) => {
+    setSingleReason(newReason);
+    const isEntrada = newReason.toLowerCase().includes('recebimento') || newReason.toLowerCase().includes('entrada');
+    setSingleType(isEntrada ? 'ENTRADA' : 'SAIDA');
+  };
 
   const selectedSingleItem = items.find(i => i.id === singleItemId);
 
@@ -436,9 +494,10 @@ export const MovementsView: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-[#660099] focus:outline-none"
                     required
                   >
-                    {locations.map(loc => (
+                    <option value="ALL">🏢 Todos os Almoxarifados (Visão Ampla)</option>
+                    {(locations || []).map(loc => (
                       <option key={loc.id} value={loc.id}>
-                        {loc.name}
+                        📍 {loc.name}
                       </option>
                     ))}
                   </select>
@@ -462,12 +521,12 @@ export const MovementsView: React.FC = () => {
                   <select
                     id="batch-reason-input"
                     value={batchReason}
-                    onChange={(e) => setBatchReason(e.target.value)}
+                    onChange={(e) => handleBatchReasonChange(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:ring-2 focus:ring-[#660099] focus:outline-none"
                   >
-                    <option value="Entregas aos Colaboradores">Entregas aos Colaboradores</option>
-                    <option value="Recebimento de material">Recebimento de material</option>
-                    <option value="Movimentação de estoque">Movimentação de estoque</option>
+                    <option value="Entregas aos Colaboradores">Entregas aos Colaboradores (Saída)</option>
+                    <option value="Recebimento de material">Recebimento de material (Entrada)</option>
+                    <option value="Movimentação de estoque">Movimentação de estoque (Saída/Transferência)</option>
                   </select>
                 </div>
 
@@ -501,7 +560,7 @@ export const MovementsView: React.FC = () => {
                   <label className="block text-slate-600 font-semibold mb-1">Responsável pela Movimentação</label>
                   <input
                     type="text"
-                    value={currentUser.name}
+                    value={currentUser?.name || ''}
                     disabled
                     className="w-full px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed"
                   />
@@ -515,7 +574,7 @@ export const MovementsView: React.FC = () => {
                       className="w-full px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-lg text-[#660099] font-semibold focus:ring-2 focus:ring-[#660099] focus:outline-none"
                     >
                       <option value="">Selecione o destino...</option>
-                      {locations.filter(l => l.id !== batchLocationId).map(loc => (
+                      {(locations || []).filter(l => l.id !== batchLocationId).map(loc => (
                         <option key={loc.id} value={loc.id}>{loc.name}</option>
                       ))}
                     </select>
@@ -538,23 +597,64 @@ export const MovementsView: React.FC = () => {
 
             {/* Fast Batch Entry Table */}
             <div className="bg-white rounded-2xl border border-purple-100 shadow-xs overflow-hidden">
-              <div className="p-4 border-b border-purple-100 bg-[#FAF7FC] flex items-center justify-between">
+              <div className="p-4 border-b border-purple-100 bg-[#FAF7FC] flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">
                     Grade de Itens do Almoxarifado ({batchLocationItems.length} EPIs disponíveis)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Basta digitar a quantidade movimentada na coluna correspondente. Deixe 0 ou em branco os itens não movimentados.
+                    Digite a quantidade movimentada na coluna correspondente. Deixe 0 para os itens não movimentados.
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleClearBatchForm}
-                  className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition-colors"
-                >
-                  Limpar Grade
-                </button>
+                {/* Filter & Search Bar */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setBatchCategoryFilter('ALL')}
+                      className={`px-2.5 py-1 rounded-md transition-colors ${
+                        batchCategoryFilter === 'ALL' ? 'bg-white text-[#660099] shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBatchCategoryFilter('EPI_EPC')}
+                      className={`px-2.5 py-1 rounded-md transition-colors ${
+                        batchCategoryFilter === 'EPI_EPC' ? 'bg-white text-[#660099] shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      EPI / EPC
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBatchCategoryFilter('ERGONOMICO')}
+                      className={`px-2.5 py-1 rounded-md transition-colors ${
+                        batchCategoryFilter === 'ERGONOMICO' ? 'bg-white text-[#660099] shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Ergonômicos
+                    </button>
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="Buscar por nome ou C.A..."
+                    value={batchSearchQuery}
+                    onChange={(e) => setBatchSearchQuery(e.target.value)}
+                    className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs w-44 focus:ring-2 focus:ring-[#660099] focus:outline-none"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleClearBatchForm}
+                    className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition-colors shrink-0"
+                  >
+                    Limpar Grade
+                  </button>
+                </div>
               </div>
 
               {batchLocationItems.length === 0 ? (
@@ -721,6 +821,36 @@ export const MovementsView: React.FC = () => {
 
           <form onSubmit={handleSubmitSingle} className="space-y-4 text-xs sm:text-sm">
             
+            {/* Location & Category filters for Item Select */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-1">
+              <div>
+                <label className="block text-slate-600 text-xs font-bold mb-1">Filtrar por Almoxarifado</label>
+                <select
+                  value={singleLocFilter}
+                  onChange={(e) => setSingleLocFilter(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                >
+                  <option value="ALL">🏢 Todos os Almoxarifados</option>
+                  {(locations || []).map(loc => (
+                    <option key={loc.id} value={loc.id}>📍 {loc.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 text-xs font-bold mb-1">Filtrar por Categoria</label>
+                <select
+                  value={singleCategoryFilter}
+                  onChange={(e) => setSingleCategoryFilter(e.target.value as any)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                >
+                  <option value="ALL">Todas as Categorias</option>
+                  <option value="EPI_EPC">EPI / EPC</option>
+                  <option value="ERGONOMICO">Ergonômicos</option>
+                </select>
+              </div>
+            </div>
+
             {/* Item Selector */}
             <div>
               <label className="block text-slate-700 font-bold mb-1.5">Equipamento de Proteção (EPI) *</label>
@@ -731,14 +861,18 @@ export const MovementsView: React.FC = () => {
                 className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
                 required
               >
-                {items.map(i => {
-                  const loc = locations.find(l => l.id === i.locationId);
-                  return (
-                    <option key={i.id} value={i.id}>
-                      {i.name} (CA: {i.caNumber}) • Saldo: {i.quantity} {i.unit} • {loc?.name || 'Local'}
-                    </option>
-                  );
-                })}
+                {filteredSingleItems.length === 0 ? (
+                  <option value="">Nenhum EPI encontrado com esses filtros</option>
+                ) : (
+                  filteredSingleItems.map(i => {
+                    const loc = (locations || []).find(l => l.id === i.locationId);
+                    return (
+                      <option key={i.id} value={i.id}>
+                        {i.name} (CA: {i.caNumber || 'N/A'}) • Saldo: {i.quantity} {i.unit || 'un'} • {loc?.name || 'Local'}
+                      </option>
+                    );
+                  })
+                )}
               </select>
             </div>
 
@@ -775,13 +909,13 @@ export const MovementsView: React.FC = () => {
               <label className="block text-slate-700 font-bold mb-1.5">Motivo ou tipo de operação *</label>
               <select
                 value={singleReason}
-                onChange={(e) => setSingleReason(e.target.value)}
+                onChange={(e) => handleSingleReasonChange(e.target.value)}
                 className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
                 required
               >
-                <option value="Entregas aos Colaboradores">Entregas aos Colaboradores</option>
-                <option value="Recebimento de material">Recebimento de material</option>
-                <option value="Movimentação de estoque">Movimentação de estoque</option>
+                <option value="Entregas aos Colaboradores">Entregas aos Colaboradores (Saída)</option>
+                <option value="Recebimento de material">Recebimento de material (Entrada)</option>
+                <option value="Movimentação de estoque">Movimentação de estoque (Saída/Transferência)</option>
               </select>
             </div>
 

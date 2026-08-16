@@ -23,6 +23,7 @@ import { MovementType, BatchMovementEntry } from '../types';
 
 interface BatchEntryItem {
   qty: number;
+  qtyStr?: string;
   notes: string;
   type: MovementType;
 }
@@ -53,6 +54,7 @@ export const MovementsView: React.FC = () => {
   const [batchRole, setBatchRole] = useState('Equipe Técnica / Operacional');
   const [batchDestinationLocationId, setBatchDestinationLocationId] = useState('');
   const [batchDefaultType, setBatchDefaultType] = useState<MovementType>('SAIDA');
+  const [batchAdjustMode, setBatchAdjustMode] = useState<'DELTA' | 'FINAL'>('DELTA');
   const [batchEntries, setBatchEntries] = useState<Record<string, BatchEntryItem>>({});
   const [batchSuccessMsg, setBatchSuccessMsg] = useState<string | null>(null);
   const [batchErrorMsg, setBatchErrorMsg] = useState<string | null>(null);
@@ -103,9 +105,9 @@ export const MovementsView: React.FC = () => {
       setBatchEntries(prev => {
         const next = { ...prev };
         Object.keys(next).forEach(key => {
-          const item = items.find(i => i.id === key);
           next[key] = {
-            qty: next[key]?.qty !== undefined ? next[key].qty : (item?.quantity ?? 0),
+            qty: 0,
+            qtyStr: '',
             notes: next[key]?.notes || '',
             type: targetType,
           };
@@ -132,11 +134,12 @@ export const MovementsView: React.FC = () => {
 
   const handleBatchQtyChange = (itemId: string, qtyStr: string) => {
     const val = parseInt(qtyStr, 10);
-    const qty = isNaN(val) || val < 0 ? 0 : val;
+    const qty = isNaN(val) ? 0 : val;
     setBatchEntries(prev => ({
       ...prev,
       [itemId]: {
         qty,
+        qtyStr,
         notes: prev[itemId]?.notes || '',
         type: prev[itemId]?.type || batchDefaultType,
       }
@@ -145,13 +148,11 @@ export const MovementsView: React.FC = () => {
 
   const handleBatchTypeChange = (itemId: string, type: MovementType) => {
     setBatchEntries(prev => {
-      const item = items.find(i => i.id === itemId);
-      const currentQty = prev[itemId]?.qty;
-      const initialQty = type === 'AJUSTE' ? (currentQty !== undefined ? currentQty : (item?.quantity ?? 0)) : (currentQty || 0);
       return {
         ...prev,
         [itemId]: {
-          qty: initialQty,
+          qty: 0,
+          qtyStr: '',
           notes: prev[itemId]?.notes || '',
           type,
         }
@@ -164,6 +165,7 @@ export const MovementsView: React.FC = () => {
       ...prev,
       [itemId]: {
         qty: prev[itemId]?.qty || 0,
+        qtyStr: prev[itemId]?.qtyStr,
         notes,
         type: prev[itemId]?.type || batchDefaultType,
       }
@@ -182,18 +184,34 @@ export const MovementsView: React.FC = () => {
       const item = items.find(i => i.id === itemId);
       if (!item) return false;
       if (e.type === 'AJUSTE') {
-        return e.qty !== undefined && e.qty !== item.quantity;
+        const rawStr = (e.qtyStr !== undefined ? e.qtyStr : (e.qty !== undefined ? String(e.qty) : '')).trim();
+        const val = parseInt(rawStr, 10);
+        if (isNaN(val) || rawStr === '') return false;
+
+        if (batchAdjustMode === 'DELTA' || rawStr.startsWith('-') || rawStr.startsWith('+')) {
+          return val !== 0;
+        } else {
+          return val !== item.quantity;
+        }
       }
       return e.qty > 0;
     });
-  }, [batchEntries, items]);
+  }, [batchEntries, items, batchAdjustMode]);
 
   const activeBatchCount = activeBatchEntries.length;
   const activeBatchTotalUnits = activeBatchEntries.reduce((acc, [itemId, e]) => {
     const item = items.find(i => i.id === itemId);
     if (!item) return acc;
     if (e.type === 'AJUSTE') {
-      return acc + Math.abs((e.qty ?? item.quantity) - item.quantity);
+      const rawStr = (e.qtyStr !== undefined ? e.qtyStr : (e.qty !== undefined ? String(e.qty) : '')).trim();
+      const val = parseInt(rawStr, 10);
+      if (isNaN(val) || rawStr === '') return acc;
+
+      if (batchAdjustMode === 'DELTA' || rawStr.startsWith('-') || rawStr.startsWith('+')) {
+        return acc + Math.abs(val);
+      } else {
+        return acc + Math.abs(val - item.quantity);
+      }
     }
     return acc + e.qty;
   }, 0);
@@ -215,14 +233,25 @@ export const MovementsView: React.FC = () => {
       if (!item) continue;
 
       if (data.type === 'AJUSTE') {
-        if (data.qty !== undefined && data.qty !== item.quantity && data.qty >= 0) {
-          validEntries.push({
-            itemId,
-            quantity: Math.abs(data.qty - item.quantity),
-            newQuantity: data.qty,
-            type: 'AJUSTE',
-            notes: data.notes,
-          });
+        const rawStr = (data.qtyStr !== undefined ? data.qtyStr : (data.qty !== undefined ? String(data.qty) : '')).trim();
+        const val = parseInt(rawStr, 10);
+        if (!isNaN(val) && rawStr !== '') {
+          let targetStock = item.quantity;
+          if (batchAdjustMode === 'DELTA' || rawStr.startsWith('-') || rawStr.startsWith('+')) {
+            targetStock = Math.max(0, item.quantity + val);
+          } else {
+            targetStock = Math.max(0, val);
+          }
+
+          if (targetStock !== item.quantity) {
+            validEntries.push({
+              itemId,
+              quantity: Math.abs(targetStock - item.quantity),
+              newQuantity: targetStock,
+              type: 'AJUSTE',
+              notes: data.notes,
+            });
+          }
         }
       } else if (data.qty > 0) {
         if (data.type === 'SAIDA' && data.qty > item.quantity) {
@@ -289,6 +318,8 @@ export const MovementsView: React.FC = () => {
   const [singleCategoryFilter, setSingleCategoryFilter] = useState<'EPI_EPC' | 'ERGONOMICO'>('EPI_EPC');
   const [singleType, setSingleType] = useState<MovementType>('SAIDA');
   const [singleQty, setSingleQty] = useState<number>(1);
+  const [singleAdjustMode, setSingleAdjustMode] = useState<'DELTA' | 'FINAL'>('DELTA');
+  const [singleAdjustValStr, setSingleAdjustValStr] = useState<string>('0');
   const [singleReason, setSingleReason] = useState<string>('Entregas aos Colaboradores');
   const [singleDestinationLocationId, setSingleDestinationLocationId] = useState('');
   const [singleEmployeeName, setSingleEmployeeName] = useState<string>('');
@@ -330,6 +361,7 @@ export const MovementsView: React.FC = () => {
     setSingleReason(newReason);
     if (newReason === 'Ajuste de Estoque / Contagem Física') {
       setSingleType('AJUSTE' as any);
+      setSingleAdjustValStr('0');
     } else {
       const isEntrada = newReason.toLowerCase().includes('recebimento') || newReason.toLowerCase().includes('entrada');
       setSingleType(isEntrada ? 'ENTRADA' : 'SAIDA');
@@ -337,6 +369,29 @@ export const MovementsView: React.FC = () => {
   };
 
   const selectedSingleItem = items.find(i => i.id === singleItemId);
+
+  const calculatedSingleAdjustment = useMemo(() => {
+    const currentStock = selectedSingleItem?.quantity || 0;
+    const rawStr = (singleAdjustValStr || '').trim();
+    const val = parseInt(rawStr, 10);
+    const numVal = isNaN(val) ? 0 : val;
+
+    if (singleAdjustMode === 'DELTA' || rawStr.startsWith('-') || rawStr.startsWith('+')) {
+      const target = Math.max(0, currentStock + numVal);
+      return {
+        targetStock: target,
+        diff: numVal,
+        isDeltaMode: true
+      };
+    } else {
+      const target = Math.max(0, numVal);
+      return {
+        targetStock: target,
+        diff: target - currentStock,
+        isDeltaMode: false
+      };
+    }
+  }, [selectedSingleItem, singleAdjustValStr, singleAdjustMode]);
 
   const handleSubmitSingle = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -348,22 +403,19 @@ export const MovementsView: React.FC = () => {
       return;
     }
 
-    if (singleReason === 'Ajuste de Estoque / Contagem Física') {
-      if (singleQty < 0) {
-        setSingleErrorMsg('A nova quantidade não pode ser negativa.');
-        return;
-      }
+    if (singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any)) {
+      const targetQty = calculatedSingleAdjustment.targetStock;
 
       const res = await adjustStock({
         itemId: singleItemId,
-        newQuantity: singleQty,
+        newQuantity: targetQty,
         reason: singleReason,
         notes: singleNotes,
       });
 
       if (res.success) {
-        setSingleSuccessMsg(`Ajuste de estoque do item "${selectedSingleItem?.name}" registrado com sucesso! Novo saldo: ${singleQty} ${selectedSingleItem?.unit || 'un'}.`);
-        setSingleQty(1);
+        setSingleSuccessMsg(`Ajuste de estoque do item "${selectedSingleItem?.name}" registrado com sucesso! Novo saldo: ${targetQty} ${selectedSingleItem?.unit || 'un'}.`);
+        setSingleAdjustValStr('0');
         setSingleNotes('');
       } else {
         setSingleErrorMsg(res.error || 'Erro ao registrar ajuste de estoque.');
@@ -606,7 +658,7 @@ export const MovementsView: React.FC = () => {
                   >
                     <option value="Entregas aos Colaboradores">Entregas aos Colaboradores (Saída)</option>
                     <option value="Recebimento de material">Recebimento de material (Entrada)</option>
-                    <option value="Ajuste de Estoque / Contagem Física">Ajuste de Estoque / Contagem Física (Balanço em Lote)</option>
+                    <option value="Ajuste de Estoque / Contagem Física">Ajuste de Estoque / Contagem Física</option>
                     <option value="Movimentação de estoque">Movimentação de estoque (Saída/Transferência)</option>
                   </select>
                 </div>
@@ -622,9 +674,9 @@ export const MovementsView: React.FC = () => {
                       setBatchEntries(prev => {
                         const next = { ...prev };
                         Object.keys(next).forEach(key => {
-                          const item = items.find(i => i.id === key);
                           next[key] = {
-                            qty: next[key]?.qty !== undefined ? next[key].qty : (newType === 'AJUSTE' ? (item?.quantity ?? 0) : 0),
+                            qty: 0,
+                            qtyStr: '',
                             notes: next[key]?.notes || '',
                             type: newType,
                           };
@@ -636,11 +688,37 @@ export const MovementsView: React.FC = () => {
                   >
                     <option value="SAIDA">Saída</option>
                     <option value="ENTRADA">Entrada</option>
-                    <option value="AJUSTE">Ajuste / Contagem Físcia (Balanço)</option>
+                    <option value="AJUSTE">Ajuste de Estoque</option>
                   </select>
                 </div>
 
               </div>
+
+              {(batchReason === 'Ajuste de Estoque / Contagem Física' || batchDefaultType === 'AJUSTE') && (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 bg-purple-50 p-2.5 rounded-xl border border-purple-100 mt-2 text-xs">
+                  <span className="font-bold text-[#660099]">Modo do Ajuste em Lote:</span>
+                  <div className="flex bg-white p-0.5 rounded-lg border border-purple-200 shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => setBatchAdjustMode('DELTA')}
+                      className={`px-3 py-1 rounded-md transition-all font-semibold ${
+                        batchAdjustMode === 'DELTA' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
+                      }`}
+                    >
+                      📊 Variação (+ / -) (ex: -10 ou +10)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBatchAdjustMode('FINAL')}
+                      className={`px-3 py-1 rounded-md transition-all font-semibold ${
+                        batchAdjustMode === 'FINAL' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
+                      }`}
+                    >
+                      🔢 Saldo Final Apurado (ex: 40)
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-1 border-t border-purple-50">
                 <div>
@@ -749,7 +827,7 @@ export const MovementsView: React.FC = () => {
                         <th className="py-3 px-4 text-center">Saldo Atual</th>
                         <th className="py-3 px-4 w-36 text-center">Tipo</th>
                         <th className="py-3 px-4 w-32 text-center bg-purple-50/70 text-[#660099]">
-                          {batchDefaultType === 'AJUSTE' ? 'Nova Qtd' : 'QTDE'}
+                          {batchDefaultType === 'AJUSTE' ? (batchAdjustMode === 'DELTA' ? 'Variação (+/-)' : 'Nova Qtd') : 'QTDE'}
                         </th>
                         <th className="py-3 px-4 text-center">Novo Saldo (Diferença)</th>
                       </tr>
@@ -766,10 +844,24 @@ export const MovementsView: React.FC = () => {
                         let diff = 0;
 
                         if (isAjuste) {
-                          const hasCustomVal = rawEntry !== undefined && rawEntry.qty !== undefined;
-                          projectedStock = hasCustomVal ? rawEntry.qty : item.quantity;
-                          diff = projectedStock - item.quantity;
-                          isMoved = hasCustomVal && diff !== 0;
+                          const rawStr = (rawEntry?.qtyStr !== undefined ? rawEntry.qtyStr : (rawEntry?.qty !== undefined ? String(rawEntry.qty) : '')).trim();
+                          const val = parseInt(rawStr, 10);
+                          const hasValue = !isNaN(val) && rawStr !== '';
+
+                          if (hasValue) {
+                            if (batchAdjustMode === 'DELTA' || rawStr.startsWith('-') || rawStr.startsWith('+')) {
+                              projectedStock = Math.max(0, item.quantity + val);
+                              diff = val;
+                            } else {
+                              projectedStock = Math.max(0, val);
+                              diff = projectedStock - item.quantity;
+                            }
+                            isMoved = diff !== 0;
+                          } else {
+                            projectedStock = item.quantity;
+                            diff = 0;
+                            isMoved = false;
+                          }
                           isInvalid = projectedStock < 0;
                         } else {
                           const qty = rawEntry?.qty || 0;
@@ -819,20 +911,20 @@ export const MovementsView: React.FC = () => {
                               >
                                 <option value="SAIDA">Saída</option>
                                 <option value="ENTRADA">Entrada</option>
-                                <option value="AJUSTE">Ajuste (Contagem)</option>
+                                <option value="AJUSTE">Ajuste de Estoque</option>
                               </select>
                             </td>
 
                             <td className="py-2.5 px-4 text-center bg-purple-50/30">
                               <input
                                 id={`batch-input-qty-${item.id}`}
-                                type="number"
-                                min="0"
+                                type={isAjuste ? "text" : "number"}
+                                min={isAjuste ? undefined : "0"}
                                 max={entryType === 'SAIDA' ? item.quantity : 9999}
-                                placeholder={isAjuste ? String(item.quantity) : "0"}
-                                value={rawEntry?.qty !== undefined ? rawEntry.qty : (isAjuste ? item.quantity : '')}
+                                placeholder={isAjuste ? (batchAdjustMode === 'DELTA' ? "0 ou -10" : String(item.quantity)) : "0"}
+                                value={rawEntry?.qtyStr !== undefined ? rawEntry.qtyStr : (rawEntry?.qty !== undefined && rawEntry?.qty !== 0 ? String(rawEntry.qty) : '')}
                                 onChange={(e) => handleBatchQtyChange(item.id, e.target.value)}
-                                className={`w-24 text-center py-1.5 px-2 font-mono font-bold text-sm border rounded-lg focus:ring-2 focus:ring-[#660099] focus:outline-none transition-all ${
+                                className={`w-28 text-center py-1.5 px-2 font-mono font-bold text-sm border rounded-lg focus:ring-2 focus:ring-[#660099] focus:outline-none transition-all ${
                                   isInvalid 
                                     ? 'border-rose-500 bg-rose-50 text-rose-700' 
                                     : isMoved 
@@ -989,7 +1081,10 @@ export const MovementsView: React.FC = () => {
                   onChange={(e) => {
                     const newT = e.target.value as any;
                     setSingleType(newT);
-                    if (newT === 'AJUSTE') setSingleReason('Ajuste de Estoque / Contagem Física');
+                    if (newT === 'AJUSTE') {
+                      setSingleReason('Ajuste de Estoque / Contagem Física');
+                      setSingleAdjustValStr('0');
+                    }
                   }}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
                 >
@@ -1002,33 +1097,77 @@ export const MovementsView: React.FC = () => {
               <div>
                 <label className="block text-slate-700 font-bold mb-1.5">
                   {singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any)
-                    ? `Nova Quantidade Apurada (${selectedSingleItem?.unit || 'un'}) *`
+                    ? (singleAdjustMode === 'DELTA' ? `Variação do Ajuste (+ / -) (${selectedSingleItem?.unit || 'un'}) *` : `Nova Quantidade Apurada (${selectedSingleItem?.unit || 'un'}) *`)
                     : `Quantidade (${selectedSingleItem?.unit || 'un'}) *`}
                 </label>
-                <input
-                  id="single-qty-input"
-                  type="number"
-                  min="0"
-                  value={singleQty}
-                  onChange={(e) => setSingleQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
-                  required
-                />
+                {singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any) ? (
+                  <input
+                    id="single-qty-input"
+                    type="text"
+                    placeholder={singleAdjustMode === 'DELTA' ? "Ex: -10 ou +10" : "Ex: 40"}
+                    value={singleAdjustValStr}
+                    onChange={(e) => setSingleAdjustValStr(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
+                    required
+                  />
+                ) : (
+                  <input
+                    id="single-qty-input"
+                    type="number"
+                    min="1"
+                    value={singleQty}
+                    onChange={(e) => setSingleQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
+                    required
+                  />
+                )}
               </div>
             </div>
 
-            {/* Helper box for AJUSTE mode */}
+            {/* Helper box and mode toggle for AJUSTE mode */}
             {(singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any)) && selectedSingleItem && (
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-center justify-between font-medium">
-                <div>
-                  <span className="text-slate-600 block text-[11px]">Estoque Cadastrado no Sistema:</span>
-                  <strong className="text-slate-900 text-sm">{selectedSingleItem.quantity} {selectedSingleItem.unit || 'un'}</strong>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 bg-purple-50 p-2 rounded-xl border border-purple-100 text-xs">
+                  <span className="font-bold text-[#660099]">Modo do Ajuste:</span>
+                  <div className="flex bg-white p-0.5 rounded-lg border border-purple-200 shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSingleAdjustMode('DELTA')}
+                      className={`px-3 py-1 rounded-md transition-all font-semibold ${
+                        singleAdjustMode === 'DELTA' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
+                      }`}
+                    >
+                      📊 Variação (+ / -) (ex: -10 ou +10)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSingleAdjustMode('FINAL')}
+                      className={`px-3 py-1 rounded-md transition-all font-semibold ${
+                        singleAdjustMode === 'FINAL' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
+                      }`}
+                    >
+                      🔢 Saldo Final Apurado (ex: 40)
+                    </button>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-slate-600 block text-[11px]">Diferença de Inventário:</span>
-                  <strong className={`text-sm font-mono ${singleQty - selectedSingleItem.quantity >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {singleQty - selectedSingleItem.quantity >= 0 ? `+${singleQty - selectedSingleItem.quantity}` : `${singleQty - selectedSingleItem.quantity}`} {selectedSingleItem.unit || 'un'}
-                  </strong>
+
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-center justify-between font-medium">
+                  <div>
+                    <span className="text-slate-600 block text-[11px]">Estoque Cadastrado no Sistema:</span>
+                    <strong className="text-slate-900 text-sm">{selectedSingleItem.quantity} {selectedSingleItem.unit || 'un'}</strong>
+                  </div>
+                  <div className="text-center">
+                    <span className="text-slate-600 block text-[11px]">Variação / Ajuste:</span>
+                    <strong className={`text-sm font-mono ${calculatedSingleAdjustment.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {calculatedSingleAdjustment.diff >= 0 ? `+${calculatedSingleAdjustment.diff}` : `${calculatedSingleAdjustment.diff}`} {selectedSingleItem.unit || 'un'}
+                    </strong>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-600 block text-[11px]">Novo Saldo Apurado:</span>
+                    <strong className="text-[#660099] text-sm font-bold font-mono">
+                      {calculatedSingleAdjustment.targetStock} {selectedSingleItem.unit || 'un'}
+                    </strong>
+                  </div>
                 </div>
               </div>
             )}
@@ -1044,7 +1183,7 @@ export const MovementsView: React.FC = () => {
               >
                 <option value="Entregas aos Colaboradores">Entregas aos Colaboradores (Saída)</option>
                 <option value="Recebimento de material">Recebimento de material (Entrada)</option>
-                <option value="Ajuste de Estoque / Contagem Física">Ajuste de Estoque / Contagem Física (Balanço)</option>
+                <option value="Ajuste de Estoque / Contagem Física">Ajuste de Estoque / Contagem Física</option>
                 <option value="Movimentação de estoque">Movimentação de estoque (Saída/Transferência)</option>
               </select>
             </div>

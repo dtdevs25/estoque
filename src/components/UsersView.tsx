@@ -50,19 +50,25 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
 
   // Filtered Users List
   const filteredUsers = useMemo(() => {
-    return users.filter(user => {
+    return (users || []).filter(user => {
+      if (!user) return false;
       // Search
-      const searchLower = searchTerm.toLowerCase();
+      const searchLower = (searchTerm || '').toLowerCase();
+      const userName = (user.name || '').toLowerCase();
+      const userEmail = (user.email || '').toLowerCase();
+      const userDept = (user.department || '').toLowerCase();
+
       const matchSearch = 
-        user.name.toLowerCase().includes(searchLower) ||
-        user.email.toLowerCase().includes(searchLower) ||
-        (user.department && user.department.toLowerCase().includes(searchLower));
+        userName.includes(searchLower) ||
+        userEmail.includes(searchLower) ||
+        userDept.includes(searchLower);
 
       // Role
       const matchRole = roleFilter === 'ALL' || user.role === roleFilter;
 
       // Location
-      const matchLoc = locationFilter === 'ALL' || user.locationIds.includes(locationFilter) || user.locationIds.includes('ALL');
+      const userLocs = Array.isArray(user.locationIds) ? user.locationIds : ['ALL'];
+      const matchLoc = locationFilter === 'ALL' || userLocs.includes(locationFilter) || userLocs.includes('ALL');
 
       // Status
       const matchStatus = statusFilter === 'ALL' || user.status === statusFilter;

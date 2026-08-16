@@ -74,7 +74,7 @@ export const KitsView: React.FC<KitsViewProps> = ({
               Kits Cadastrados
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-[#660099] border border-purple-200">
-              {kits.length} {kits.length === 1 ? 'Kit' : 'Kits'} no Catálogo
+              {(kits || []).length} {(kits || []).length === 1 ? 'Kit' : 'Kits'} no Catálogo
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -95,7 +95,7 @@ export const KitsView: React.FC<KitsViewProps> = ({
       </div>
 
       {/* Kits List Grid */}
-      {kits.length === 0 ? (
+      {(kits || []).length === 0 ? (
         <div className="bg-white rounded-2xl border border-purple-100 p-12 text-center space-y-4 shadow-xs">
           <div className="w-16 h-16 rounded-full bg-purple-50 border border-purple-200 text-[#660099] flex items-center justify-center mx-auto">
             <Boxes className="w-8 h-8" />
@@ -118,7 +118,7 @@ export const KitsView: React.FC<KitsViewProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {kits.map(kit => (
+          {(kits || []).map(kit => (
             <div 
               key={kit.id}
               className="bg-white rounded-2xl border border-purple-100 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden"
@@ -221,7 +221,7 @@ export const KitsView: React.FC<KitsViewProps> = ({
       )}
 
       {/* Simulator Section */}
-      {kits.length > 0 && (
+      {(kits || []).length > 0 && (
         <div className="bg-white rounded-2xl border border-purple-100 p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-3 border-b border-purple-50 pb-3">
             <div className="p-2 rounded-lg bg-purple-50 text-[#660099]">
@@ -243,7 +243,7 @@ export const KitsView: React.FC<KitsViewProps> = ({
                 onChange={(e) => setSelectedKitForSimulation(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099]"
               >
-                {kits.map(k => (
+                {(kits || []).map(k => (
                   <option key={k.id} value={k.id}>{k.name}</option>
                 ))}
               </select>
@@ -256,7 +256,7 @@ export const KitsView: React.FC<KitsViewProps> = ({
                 onChange={(e) => setActiveLocId(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099]"
               >
-                {locations.map(l => (
+                {(locations || []).map(l => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
@@ -279,15 +279,15 @@ export const KitsView: React.FC<KitsViewProps> = ({
             <div className="mt-4 pt-4 border-t border-purple-50 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-medium text-slate-600">
-                  Capacidade máxima no almoxarifado: <strong className="text-[#660099] font-mono font-bold text-sm">{simReport.maxCompleteKits} kits</strong>
+                  Capacidade máxima no almoxarifado: <strong className="text-[#660099] font-mono font-bold text-sm">{simReport.maxCompleteKits || 0} kits</strong>
                 </span>
                 <span className="font-bold text-slate-500">Balanço do Almoxarifado:</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {simReport.componentDetails.map((comp, i) => {
-                  const neededTotal = comp.required * targetKitsSimulation;
-                  const deficit = Math.max(0, neededTotal - comp.available);
+                {(simReport.componentDetails || []).map((comp, i) => {
+                  const neededTotal = (comp.required || 1) * targetKitsSimulation;
+                  const deficit = Math.max(0, neededTotal - (comp.available || 0));
                   const isSatisfied = deficit === 0;
 
                   return (
@@ -296,13 +296,13 @@ export const KitsView: React.FC<KitsViewProps> = ({
                     }`}>
                       <div className="font-bold text-slate-800 truncate">{comp.itemName}</div>
                       <div className="mt-2 flex justify-between text-[11px]">
-                        <span className="text-slate-500">Saldo: {comp.available}</span>
+                        <span className="text-slate-500">Saldo: {comp.available || 0}</span>
                         <span className="text-slate-500">Necessário: {neededTotal}</span>
                       </div>
                       <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between">
                         <span className="text-[10px] uppercase font-bold text-slate-500">Falta Comprar:</span>
                         <strong className={`font-mono text-sm ${isSatisfied ? 'text-[#660099]' : 'text-rose-700 font-extrabold'}`}>
-                          {isSatisfied ? '0 (OK)' : `+${deficit} ${comp.unit}`}
+                          {isSatisfied ? '0 (OK)' : `+${deficit} ${comp.unit || 'un'}`}
                         </strong>
                       </div>
                     </div>

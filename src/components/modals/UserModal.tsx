@@ -22,13 +22,13 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
 
   useEffect(() => {
     if (userToEdit) {
-      setName(userToEdit.name);
-      setEmail(userToEdit.email);
-      setRole(userToEdit.role);
-      setLocationIds(userToEdit.locationIds);
+      setName(userToEdit.name || '');
+      setEmail(userToEdit.email || '');
+      setRole(userToEdit.role || 'CONTROLLER');
+      setLocationIds(Array.isArray(userToEdit.locationIds) ? userToEdit.locationIds : ['ALL']);
       setDepartment(userToEdit.department || '');
       setNotes(userToEdit.notes || '');
-      setStatus(userToEdit.status);
+      setStatus(userToEdit.status || 'ATIVO');
     } else {
       setName('');
       setEmail('');
@@ -42,6 +42,8 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
 
   if (!isOpen) return null;
 
+  const safeLocationIds = Array.isArray(locationIds) ? locationIds : ['ALL'];
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) {
@@ -53,7 +55,7 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
       name: name.trim(),
       email: email.trim().toLowerCase(),
       role,
-      locationIds: role === 'ADMIN' ? ['ALL'] : (locationIds.length === 0 ? ['ALL'] : locationIds),
+      locationIds: role === 'ADMIN' ? ['ALL'] : (safeLocationIds.length === 0 ? ['ALL'] : safeLocationIds),
       department: department.trim(),
       notes: notes.trim(),
       status,
@@ -236,7 +238,7 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
                   <label className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer text-xs font-medium text-slate-800">
                     <input 
                       type="checkbox"
-                      checked={locationIds.includes('ALL')}
+                      checked={safeLocationIds.includes('ALL')}
                       onChange={(e) => {
                         if (e.target.checked) setLocationIds(['ALL']);
                         else setLocationIds([]);
@@ -249,13 +251,13 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
                     <label key={loc.id} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer text-xs font-medium text-slate-800">
                       <input 
                         type="checkbox"
-                        checked={locationIds.includes(loc.id) && !locationIds.includes('ALL')}
-                        disabled={locationIds.includes('ALL')}
+                        checked={safeLocationIds.includes(loc.id) && !safeLocationIds.includes('ALL')}
+                        disabled={safeLocationIds.includes('ALL')}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setLocationIds(prev => prev.filter(id => id !== 'ALL').concat(loc.id));
+                            setLocationIds(prev => (Array.isArray(prev) ? prev : []).filter(id => id !== 'ALL').concat(loc.id));
                           } else {
-                            setLocationIds(prev => prev.filter(id => id !== loc.id));
+                            setLocationIds(prev => (Array.isArray(prev) ? prev : []).filter(id => id !== loc.id));
                           }
                         }}
                         className="rounded border-slate-300 text-[#660099] focus:ring-[#660099]"

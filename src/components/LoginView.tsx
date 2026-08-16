@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Lock, Mail, Eye, EyeOff, ArrowRight, AlertCircle, KeyRound, CheckCircle2, ShieldCheck, X, Sparkles } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, ArrowRight, AlertCircle, KeyRound, CheckCircle2, X } from 'lucide-react';
 import { useStock } from '../context/StockContext';
 import * as apiService from '../services/api';
 import logoApp from '../../Logos/logo.png';
@@ -68,7 +68,7 @@ export const LoginView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#2a0040] via-[#660099] to-[#1a0029] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Dynamic Animated Floating Background Orbs / Vivo Symbols */}
+      {/* Background Glows */}
       <motion.div
         animate={{
           y: [0, -30, 0],
@@ -99,50 +99,72 @@ export const LoginView: React.FC = () => {
         className="absolute bottom-10 right-12 w-[30rem] h-[30rem] bg-fuchsia-600/25 rounded-full blur-[120px] pointer-events-none"
       />
 
-      <motion.div
+      {/* Floating Animated Vivo Logos in the background */}
+      <motion.img
+        src={logoVivo}
+        alt=""
         animate={{
-          y: [-15, 20, -15],
-          x: [-10, 15, -10],
-          rotate: [0, 10, 0],
+          y: [0, -40, 0],
+          x: [0, 25, 0],
+          rotate: [-5, 10, -5],
+          scale: [1, 1.08, 1],
         }}
         transition={{
           duration: 12,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        className="absolute top-1/3 right-1/4 w-72 h-72 bg-violet-400/20 rounded-full blur-[90px] pointer-events-none"
+        className="absolute top-12 left-16 h-28 opacity-15 brightness-0 invert pointer-events-none hidden md:block"
       />
 
-      {/* Floating Animated Vivo Decorative Particle Shapes */}
-      <motion.div
+      <motion.img
+        src={logoVivo}
+        alt=""
         animate={{
-          y: [0, -15, 0],
-          rotate: [0, 360],
+          y: [0, 45, 0],
+          x: [0, -30, 0],
+          rotate: [10, -10, 10],
+          scale: [0.9, 1.1, 0.9],
         }}
         transition={{
-          duration: 20,
+          duration: 15,
           repeat: Infinity,
-          ease: 'linear',
+          ease: 'easeInOut',
         }}
-        className="absolute top-16 right-20 text-white/10 pointer-events-none hidden md:block"
-      >
-        <Sparkles className="w-24 h-24" />
-      </motion.div>
+        className="absolute bottom-16 right-20 h-36 opacity-15 brightness-0 invert pointer-events-none hidden md:block"
+      />
 
-      <motion.div
+      <motion.img
+        src={logoVivo}
+        alt=""
         animate={{
-          y: [0, 20, 0],
-          rotate: [360, 0],
+          y: [-20, 30, -20],
+          x: [-15, 20, -15],
+          rotate: [0, -15, 0],
         }}
         transition={{
-          duration: 25,
+          duration: 18,
           repeat: Infinity,
-          ease: 'linear',
+          ease: 'easeInOut',
         }}
-        className="absolute bottom-16 left-20 text-white/10 pointer-events-none hidden md:block"
-      >
-        <Sparkles className="w-28 h-28" />
-      </motion.div>
+        className="absolute top-1/3 right-1/4 h-24 opacity-10 brightness-0 invert pointer-events-none hidden lg:block"
+      />
+
+      <motion.img
+        src={logoVivo}
+        alt=""
+        animate={{
+          y: [30, -20, 30],
+          x: [20, -15, 20],
+          rotate: [15, 0, 15],
+        }}
+        transition={{
+          duration: 14,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute bottom-1/4 left-1/4 h-20 opacity-10 brightness-0 invert pointer-events-none hidden lg:block"
+      />
 
       {/* Main Glassmorphism Login Card */}
       <motion.div
@@ -171,7 +193,7 @@ export const LoginView: React.FC = () => {
               />
             </div>
             <h1 className="text-2xl font-bold text-white tracking-tight drop-shadow-sm">EstoqueEPI</h1>
-            <p className="text-purple-200/90 text-sm mt-1 font-medium">Gestão de Equipamentos & Almoxarifado</p>
+            <p className="text-purple-200/90 text-sm mt-1 font-medium">Gestão de EPI</p>
           </div>
 
           {/* Form */}
@@ -274,14 +296,6 @@ export const LoginView: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Security Badge Footer */}
-          <div className="mt-8 pt-6 border-t border-white/15 text-center">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/10 border border-white/20 rounded-full text-xs text-purple-100 font-medium backdrop-blur-md">
-              <ShieldCheck className="w-4 h-4 text-purple-300" />
-              <span>Acesso Seguro com Criptografia</span>
-            </div>
-          </div>
         </div>
       </motion.div>
 

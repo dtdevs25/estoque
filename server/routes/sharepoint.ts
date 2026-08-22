@@ -411,25 +411,12 @@ sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request,
         updated++;
       }
 
-      // Regra de Zerar: Itens no banco que não vieram da planilha devem ser zerados
+      // Regra de Exclusão (Saneamento): Itens no banco que não vieram da planilha devem ser DELETADOS
       for (const item of dbItems) {
-        if (!matchedDbItemIds.has(item.id) && item.quantity > 0) {
-          await prisma.epiItem.update({ where: { id: item.id }, data: { quantity: 0 } });
-          await prisma.stockMovement.create({
-            data: {
-              type: 'AJUSTE',
-              quantity: item.quantity,
-              previousQuantity: item.quantity,
-              newQuantity: 0,
-              itemId: item.id,
-              itemName: item.name,
-              locationId: dbLocation.id,
-              locationName: dbLocation.name,
-              reason: `Sincronização automática via SharePoint — ${syncedAt}`,
-              notes: `Item não encontrado na planilha de ${dbLocation.name}. Zerado automaticamente.`,
-            },
-          });
-          zeroed++;
+        if (!matchedDbItemIds.has(item.id)) {
+          // Deleta o item (graças ao onDelete: Cascade no Prisma, os movimentos relacionados também somem, mantendo o banco 100% limpo)
+          await prisma.epiItem.delete({ where: { id: item.id } });
+          zeroed++; // Reutilizando a variável 'zeroed' para contar deletados
           updated++;
         }
       }

@@ -105,3 +105,15 @@ export const upload = {
     return data.url;
   },
 };
+
+// ---- SharePoint Integration ----
+export const sharepoint = {
+  status: () => req<any>('/sharepoint/status'),
+  push: (locationCodes?: string[]) =>
+    req<any>('/sharepoint/sync', {
+      method: 'POST',
+      body: JSON.stringify({ locationCodes: locationCodes ?? [] }),
+    }),
+  /** Puxa dados da planilha → atualiza o banco. Chama o PA e processa a resposta. */
+  pull: () => req<any>('/sharepoint/pull', { method: 'POST', body: JSON.stringify({}) }),
+};

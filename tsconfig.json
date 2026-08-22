@@ -22,5 +22,13 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-server",
+    "assets/office_script_1_escrever.ts",
+    "assets/office_script_2_ler.ts"
+  ]
 }
+

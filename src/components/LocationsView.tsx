@@ -20,6 +20,7 @@ import {
 import { useStock } from '../context/StockContext';
 import { Location } from '../types';
 import { ConfirmDeleteModal } from './modals/ConfirmDeleteModal';
+import { SharePointSyncPanel } from './SharePointSyncPanel';
 
 interface LocationsViewProps {
   onOpenNewLocation: () => void;
@@ -70,6 +71,8 @@ export const LocationsView: React.FC<LocationsViewProps> = ({
   return (
     <div className="space-y-6 pb-12">
       
+      {/* SharePoint Integration Panel — visível apenas para Admin */}
+      {isCurrentUserAdmin && <SharePointSyncPanel />}
       {/* Top Header */}
       <div className="bg-white rounded-2xl border border-purple-100 p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

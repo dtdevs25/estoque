@@ -13,6 +13,7 @@ import { itemsRouter } from './routes/items.js';
 import { kitsRouter } from './routes/kits.js';
 import { movementsRouter } from './routes/movements.js';
 import { uploadRouter } from './routes/upload.js';
+import { sharepointRouter } from './routes/sharepoint.js';
 
 // ─── Env validation ────────────────────────────────────────────────────────
 const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'NEXTAUTH_URL'];
@@ -86,6 +87,7 @@ app.use('/api/items', itemsRouter);
 app.use('/api/kits', kitsRouter);
 app.use('/api/movements', movementsRouter);
 app.use('/api/upload', uploadRouter);
+app.use('/api/sharepoint', sharepointRouter);
 
 // ─── Health check ─────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) =>

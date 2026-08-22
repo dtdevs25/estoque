@@ -226,6 +226,45 @@ sharepointRouter.post('/sync', authenticate, requireAdmin, async (req: Request, 
 // Flow no Power Automate:
 //   Trigger: HTTP  →  Executar Script "EPI - Ler Estoque SPO"  →  Resposta (body/result)
 
+// ─── Lógica de Inteligência (Fuzzy Match) ─────────────────────────────────
+function fuzzyMatch(dbName: string, sheetName: string): boolean {
+  // Limpa caracteres especiais, parênteses e traços
+  const clean = (s: string) =>
+    s.normalize('NFD').replace(/[\u0300-\u036f]/g, "") // remove acentos
+      .toUpperCase()
+      .replace(/[-()]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const normDb = clean(dbName);
+  const normSheet = clean(sheetName);
+
+  if (normDb === normSheet) return true;
+  if (normDb.includes(normSheet) || normSheet.includes(normDb)) return true;
+
+  // Extrai números (ex: tamanhos 38, 39, 40) para não misturar luva 9 com luva 10
+  const numDb = normDb.match(/\d+/g)?.join(',') || '';
+  const numSheet = normSheet.match(/\d+/g)?.join(',') || '';
+  if (numDb && numSheet && numDb !== numSheet) {
+    return false; // Tamanhos ou números são diferentes (nunca deve dar match)
+  }
+
+  // Compara palavras em comum
+  const wordsDb = normDb.split(' ').filter(w => w.length > 2 || /\d/.test(w));
+  const wordsSheet = normSheet.split(' ').filter(w => w.length > 2 || /\d/.test(w));
+
+  let matches = 0;
+  for (const w of wordsDb) {
+    if (wordsSheet.some(ws => ws === w || ws.startsWith(w) || w.startsWith(ws))) {
+      matches++;
+    }
+  }
+
+  // Verifica se pelo menos 50% das palavras coincidem
+  const ratio = matches / Math.max(wordsDb.length, wordsSheet.length);
+  return ratio >= 0.5;
+}
+
 /**
  * POST /api/sharepoint/pull
  * Chama o Power Automate, recebe os dados da planilha na resposta
@@ -319,8 +358,9 @@ sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request,
 
       const dbItems = await prisma.epiItem.findMany({ where: { locationId: dbLocation.id } });
 
-      let matched = 0, updated = 0, skipped = 0;
+      let matched = 0, updated = 0, skipped = 0, zeroed = 0;
       const notFound: string[] = [];
+      const matchedDbItemIds = new Set<string>();
 
       for (const spItem of locPayload.items) {
         if (!spItem.descricao) continue;
@@ -335,18 +375,18 @@ sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request,
           dbItem = dbItems.find(i => normalize(i.name) === `${spNorm} ${spTam}`);
         }
         // Tentativa 3: correspondência parcial
+        // Tentativa 3: Inteligência artificial leve (Fuzzy Matching)
         if (!dbItem) {
-          dbItem = dbItems.find(i =>
-            normalize(i.name).includes(spNorm) || spNorm.includes(normalize(i.name))
-          );
+          dbItem = dbItems.find(i => fuzzyMatch(i.name, `${spItem.descricao} ${spItem.tamanho || ''}`));
         }
 
         if (!dbItem) {
-          notFound.push(`${spItem.descricao}${spItem.tamanho ? ` (${spItem.tamanho})` : ''}`);
+          notFound.push(`${spItem.descricao}${spItem.tamanho && spItem.tamanho !== 'UN' ? ` (${spItem.tamanho})` : ''}`);
           continue;
         }
 
         matched++;
+        matchedDbItemIds.add(dbItem.id);
 
         if (dbItem.quantity === spItem.quantidade) { skipped++; continue; }
 
@@ -369,6 +409,29 @@ sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request,
           },
         });
         updated++;
+      }
+
+      // Regra de Zerar: Itens no banco que não vieram da planilha devem ser zerados
+      for (const item of dbItems) {
+        if (!matchedDbItemIds.has(item.id) && item.quantity > 0) {
+          await prisma.epiItem.update({ where: { id: item.id }, data: { quantity: 0 } });
+          await prisma.stockMovement.create({
+            data: {
+              type: 'AJUSTE',
+              quantity: item.quantity,
+              previousQuantity: item.quantity,
+              newQuantity: 0,
+              itemId: item.id,
+              itemName: item.name,
+              locationId: dbLocation.id,
+              locationName: dbLocation.name,
+              reason: `Sincronização automática via SharePoint — ${syncedAt}`,
+              notes: `Item não encontrado na planilha de ${dbLocation.name}. Zerado automaticamente.`,
+            },
+          });
+          zeroed++;
+          updated++;
+        }
       }
 
       summary.push({ location: locPayload.location, matched, updated, skipped, notFound });

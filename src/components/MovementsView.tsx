@@ -39,14 +39,15 @@ export const MovementsView: React.FC = () => {
     registerSingleMovement,
     currentUser,
     transferStock,
-    adjustStock
+    adjustStock,
+    setSelectedLocationId
   } = useStock();
 
   const isViewer = currentUser?.role === 'VIEWER';
   const [activeSubTab, setActiveSubTab] = useState<'batch' | 'single' | 'history'>(isViewer ? 'history' : 'batch');
 
   // ---- State for Batch / Daily Closing Mode ----
-  const [batchLocationId, setBatchLocationId] = useState<string>(() => selectedLocationId);
+  
   const [batchCategoryFilter, setBatchCategoryFilter] = useState<'EPI_EPC' | 'ERGONOMICO'>('EPI_EPC');
   const [batchSearchQuery, setBatchSearchQuery] = useState<string>('');
   const [batchDate, setBatchDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -80,7 +81,7 @@ export const MovementsView: React.FC = () => {
     return (items || []).filter(i => {
       if (!i) return false;
       // Location Filter
-      const matchLoc = batchLocationId === 'ALL' || !batchLocationId || i.locationId === batchLocationId || i.locationId === 'ALL';
+      const matchLoc = selectedLocationId === 'ALL' || !selectedLocationId || i.locationId === selectedLocationId || i.locationId === 'ALL';
       
       // Category Filter
       let matchCat = true;
@@ -96,7 +97,7 @@ export const MovementsView: React.FC = () => {
 
       return matchLoc && matchCat && matchSearch;
     });
-  }, [items, batchLocationId, batchCategoryFilter, batchSearchQuery]);
+  }, [items, selectedLocationId, batchCategoryFilter, batchSearchQuery]);
 
   const handleBatchReasonChange = (newReason: string) => {
     setBatchReason(newReason);
@@ -294,7 +295,7 @@ export const MovementsView: React.FC = () => {
     }
 
     const res = await registerBatchMovement({
-      locationId: batchLocationId,
+      locationId: selectedLocationId,
       entries: validEntries,
       reason: batchReason,
       employeeName: currentUser.name,
@@ -309,9 +310,9 @@ export const MovementsView: React.FC = () => {
       
       // Auto-trigger SharePoint sync in the background
       try {
-        const locationCodes = batchLocationId === 'ALL' 
+        const locationCodes = selectedLocationId === 'ALL' 
           ? locations.filter(l => l.code.startsWith('SPO-')).map(l => l.code)
-          : [locations.find(l => l.id === batchLocationId)?.code].filter(Boolean) as string[];
+          : [locations.find(l => l.id === selectedLocationId)?.code].filter(Boolean) as string[];
         
         await sharepoint.push(locationCodes.length ? locationCodes : undefined);
         setBatchSuccessMsg(`Sucesso! Movimentações registradas e planilha SharePoint atualizada com os novos saldos.`);
@@ -328,7 +329,7 @@ export const MovementsView: React.FC = () => {
 
   // ---- State for Single / Unitary Mode ----
   const [singleItemId, setSingleItemId] = useState<string>(() => items[0]?.id || '');
-  const [singleLocFilter, setSingleLocFilter] = useState<string>('ALL');
+  
   const [singleCategoryFilter, setSingleCategoryFilter] = useState<'EPI_EPC' | 'ERGONOMICO'>('EPI_EPC');
   const [singleType, setSingleType] = useState<MovementType>('SAIDA');
   const [singleQty, setSingleQty] = useState<number>(1);
@@ -360,7 +361,7 @@ export const MovementsView: React.FC = () => {
   const filteredSingleItems = useMemo(() => {
     return (items || []).filter(i => {
       if (!i) return false;
-      const matchLoc = singleLocFilter === 'ALL' || !singleLocFilter || i.locationId === singleLocFilter || i.locationId === 'ALL';
+      const matchLoc = selectedLocationId === 'ALL' || !selectedLocationId || i.locationId === selectedLocationId || i.locationId === 'ALL';
       let matchCat = true;
       if (singleCategoryFilter === 'ERGONOMICO') {
         matchCat = i.type === 'ERGONOMICO' || (i.category || '').toLowerCase().includes('ergonômic') || (i.category || '').toLowerCase().includes('ergonomic');
@@ -369,7 +370,7 @@ export const MovementsView: React.FC = () => {
       }
       return matchLoc && matchCat;
     });
-  }, [items, singleLocFilter, singleCategoryFilter]);
+  }, [items, selectedLocationId, singleCategoryFilter]);
 
   const handleSingleReasonChange = (newReason: string) => {
     setSingleReason(newReason);
@@ -488,11 +489,11 @@ export const MovementsView: React.FC = () => {
   // ---- State for History & Filters ----
   const [historySearch, setHistorySearch] = useState('');
   const [historyTypeFilter, setHistoryTypeFilter] = useState<string>('ALL');
-  const [historyLocFilter, setHistoryLocFilter] = useState<string>(selectedLocationId);
+  
 
   const filteredHistory = useMemo(() => {
     return movements.filter(m => {
-      if (historyLocFilter !== 'ALL' && m.locationId !== historyLocFilter) return false;
+      if (selectedLocationId !== 'ALL' && m.locationId !== selectedLocationId) return false;
       if (historyTypeFilter !== 'ALL' && m.type !== historyTypeFilter) return false;
 
       if (historySearch.trim() !== '') {
@@ -506,7 +507,7 @@ export const MovementsView: React.FC = () => {
       }
       return true;
     });
-  }, [movements, historyLocFilter, historyTypeFilter, historySearch]);
+  }, [movements, selectedLocationId, historyTypeFilter, historySearch]);
 
   const handleExportCSV = () => {
     const headers = ['Data/Hora', 'Tipo', 'EPI', 'CA', 'Localidade', 'Qtd', 'Saldo Anterior', 'Saldo Atual', 'Motivo', 'Colaborador/Responsavel', 'Observacoes'];
@@ -631,9 +632,9 @@ export const MovementsView: React.FC = () => {
                   <label className="block text-slate-600 font-bold mb-1">Localidade / Almoxarifado *</label>
                   <select
                     id="batch-location-select"
-                    value={batchLocationId}
+                    value={selectedLocationId}
                     onChange={(e) => {
-                      setBatchLocationId(e.target.value);
+                      setSelectedLocationId(e.target.value);
                       setBatchEntries({});
                     }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-[#660099] focus:outline-none"
@@ -752,7 +753,7 @@ export const MovementsView: React.FC = () => {
                       className="w-full px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-lg text-[#660099] font-semibold focus:ring-2 focus:ring-[#660099] focus:outline-none"
                     >
                       <option value="">Selecione o destino...</option>
-                      {(locations || []).filter(l => l.id !== batchLocationId).map(loc => (
+                      {(locations || []).filter(l => l.id !== selectedLocationId).map(loc => (
                         <option key={loc.id} value={loc.id}>{loc.name}</option>
                       ))}
                     </select>
@@ -1037,8 +1038,8 @@ export const MovementsView: React.FC = () => {
               <div>
                 <label className="block text-slate-600 text-xs font-bold mb-1">Filtrar por Almoxarifado</label>
                 <select
-                  value={singleLocFilter}
-                  onChange={(e) => setSingleLocFilter(e.target.value)}
+                  value={selectedLocationId}
+                  onChange={(e) => setSelectedLocationId(e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
                 >
                   <option value="ALL">🏢 Todos os Almoxarifados</option>
@@ -1311,8 +1312,8 @@ export const MovementsView: React.FC = () => {
 
               <div>
                 <select
-                  value={historyLocFilter}
-                  onChange={(e) => setHistoryLocFilter(e.target.value)}
+                  value={selectedLocationId}
+                  onChange={(e) => setSelectedLocationId(e.target.value)}
                   className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#660099]"
                 >
                   <option value="ALL">Todas as Localidades</option>

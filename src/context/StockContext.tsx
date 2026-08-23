@@ -9,6 +9,7 @@ import * as api from '../services/api';
 
 interface StockContextType {
   locations: Location[];
+  rawItems: EpiItem[];
   items: EpiItem[];
   kits: EpiKit[];
   movements: StockMovement[];

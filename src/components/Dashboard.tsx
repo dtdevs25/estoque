@@ -83,14 +83,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const episCount = items.filter(item => item.category !== 'Ergonômico').length;
   const ergonomicsCount = items.filter(item => item.category === 'Ergonômico').length;
 
-  // Kits reports for the selected location or first location
-  const targetLocForKits = selectedLocationId === 'ALL' 
-    ? (locations[0]?.id || '') 
-    : selectedLocationId;
-
+  // Kits reports for the selected location (can be 'ALL' for global count)
   const kitReports = kits.map(kit => {
-    if (!targetLocForKits) return null;
-    return getKitAvailabilityForLocation(kit.id, targetLocForKits);
+    return getKitAvailabilityForLocation(kit.id, selectedLocationId);
   }).filter(Boolean);
 
   // Charts Data

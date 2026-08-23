@@ -402,8 +402,8 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const searchName = stripSizeFromName(itemName).toLowerCase();
     
     return items.filter(i => {
-      // Must belong to the requested location (or be a global template)
-      if (i.locationId !== locationId && i.locationId !== 'ALL') return false;
+      // Must belong to the requested location (or be a global template or we want all locations)
+      if (locationId !== 'ALL' && i.locationId !== locationId && i.locationId !== 'ALL') return false;
       
       // If it's the exact same item, always match
       if (i.id === itemId) return true;
@@ -421,8 +421,8 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const getKitAvailabilityForLocation = (kitId: string, locationId: string): KitAvailability | null => {
     const kit = kits.find(k => k.id === kitId);
-    const loc = locations.find(l => l.id === locationId);
-    if (!kit || !loc) return null;
+    if (!kit) return null;
+    if (locationId !== 'ALL' && !locations.find(l => l.id === locationId)) return null;
 
     let maxCompleteKits = Infinity;
     let limitingItem: KitLimitingItem | null = null;

@@ -35,7 +35,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({
 }) => {
   const { 
     locations, 
-    items, 
+    rawItems: items, 
     kits, 
     getKitAvailabilityForLocation, 
     deleteLocation,

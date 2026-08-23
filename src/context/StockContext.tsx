@@ -513,7 +513,7 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // ── Context Value ─────────────────────────────────────────────────────────
 
   const value: StockContextType = {
-    locations, items: displayItems, kits, movements, users, isLoading,
+    locations, rawItems: items, items: displayItems, kits, movements, users, isLoading,
     currentUserId, currentUser, selectedLocationId, setSelectedLocationId,
     isAuthenticated, login, logout,
     addUser, updateUser, deleteUser, setCurrentUserId,

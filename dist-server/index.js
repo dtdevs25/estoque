@@ -1344,8 +1344,7 @@ sharepointRouter.post("/pull", authenticate, requireAdmin, async (_req, res) => 
                 description: spItem.tamanho && spItem.tamanho !== "UN" ? `Tam ${spItem.tamanho}` : null,
                 category: "Importado Planilha",
                 type: "EPI",
-                unit: "un",
-                status: "Ativo"
+                unit: "un"
               }
             });
             dbStock = await prisma.itemStock.create({

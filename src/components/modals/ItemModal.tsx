@@ -56,15 +56,17 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
   useEffect(() => {
     if (itemToEdit) {
       setType(itemToEdit.type || defaultType);
-      setName(itemToEdit.name);
-      setCaNumber(itemToEdit.caNumber);
+      setName(itemToEdit.name || '');
+      setCaNumber(itemToEdit.caNumber || '');
       setCaValidity(itemToEdit.caValidity || '');
       setCategory(itemToEdit.category);
       setUnit(itemToEdit.unit);
-      setImageUrl(itemToEdit.imageUrl);
-      setQuantity(itemToEdit.quantity);
-      setMinQuantity(itemToEdit.minQuantity);
-      setLocationId(itemToEdit.locationId);
+      setImageUrl(itemToEdit.imageUrl || '');
+      setQuantity(itemToEdit.quantity || 0);
+      setMinQuantity(itemToEdit.minQuantity || 0);
+      let locId = itemToEdit.locationId || '';
+      if (locId === 'ALL') locId = ''; // Force specific stock when editing
+      setLocationId(locId);
       setCostPrice(itemToEdit.costPrice || 0);
       setBrand(itemToEdit.brand || '');
       setDescription(itemToEdit.description || '');
@@ -79,7 +81,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
       setImageUrl(DEFAULT_SAMPLE_IMAGES[defaultCat]);
       setQuantity(20);
       setMinQuantity(5);
-      setLocationId(selectedLocationId !== 'ALL' ? selectedLocationId : (locations[0]?.id || ''));
+      setLocationId(selectedLocationId !== 'ALL' ? selectedLocationId : 'ALL');
       setCostPrice(35);
       setBrand('');
       setDescription('');
@@ -119,7 +121,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !locationId) {
+    if (!name?.trim() || !locationId) {
       alert('Preencha os campos obrigatórios.');
       return;
     }
@@ -128,18 +130,18 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
     try {
       const payload = {
         type,
-        name: name.trim(),
-        caNumber: caNumber.trim().toUpperCase(),
+        name: name?.trim() || '',
+        caNumber: caNumber?.trim().toUpperCase() || '',
         caValidity,
         category,
         unit,
         imageUrl: imageUrl || DEFAULT_SAMPLE_IMAGES[category],
-        quantity: Number(quantity),
-        minQuantity: Number(minQuantity),
+        quantity: Number(quantity) || 0,
+        minQuantity: Number(minQuantity) || 0,
         locationId,
         costPrice: Number(costPrice) || 0,
-        brand: brand.trim(),
-        description: description.trim(),
+        brand: brand?.trim() || '',
+        description: description?.trim() || '',
       };
 
       if (itemToEdit) {
@@ -274,6 +276,8 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099] text-slate-900 font-medium"
                 required
               >
+                <option value="" disabled>Selecione um estoque...</option>
+                {!itemToEdit && <option value="ALL">Todos os Estoques (Geral)</option>}
                 {locations.map(loc => (
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}

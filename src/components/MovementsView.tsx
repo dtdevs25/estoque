@@ -563,11 +563,11 @@ export const MovementsView: React.FC = () => {
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
             title="Puxar dados do SharePoint e atualizar saldos"
           >
             <RotateCcw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Sincronizando...' : 'Sincronizar SharePoint'}
+            <span className="hidden sm:inline">{isSyncing ? 'Sincronizando...' : 'Sincronizar'}</span>
           </button>
         </div>
 
@@ -586,7 +586,7 @@ export const MovementsView: React.FC = () => {
                 }`}
               >
                 <Zap className="w-4 h-4" />
-                <span>Lançamento em Lote</span>
+                <span>Em Lote</span>
               </button>
 
               <button
@@ -599,7 +599,7 @@ export const MovementsView: React.FC = () => {
                 }`}
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>Lançamento Avulso</span>
+                <span>Avulso</span>
               </button>
             </>
           )}
@@ -665,7 +665,9 @@ export const MovementsView: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-[#660099] focus:outline-none"
                     required
                   >
-                    <option value="ALL">🏢 Todos os Almoxarifados (Visão Ampla)</option>
+                    <option value="" disabled selected={selectedLocationId === 'ALL'}>
+                      Selecione um almoxarifado...
+                    </option>
                     {(locations || []).map(loc => (
                       <option key={loc.id} value={loc.id}>
                         📍 {loc.name}
@@ -804,7 +806,7 @@ export const MovementsView: React.FC = () => {
               <div className="p-4 border-b border-purple-100 bg-[#FAF7FC] flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">
-                    Itens Homologados ({batchLocationItems.length} disponíveis)
+                    Itens ({selectedLocationId === 'ALL' || !selectedLocationId ? '0' : batchLocationItems.length})
                   </h3>
                 </div>
 
@@ -851,24 +853,28 @@ export const MovementsView: React.FC = () => {
                 </div>
               </div>
 
-              {batchLocationItems.length === 0 ? (
+              {selectedLocationId === 'ALL' || !selectedLocationId ? (
+                <div className="p-8 text-center text-rose-600 font-bold text-sm bg-rose-50 m-4 rounded-xl border border-rose-200 shadow-sm">
+                  ⚠️ Por favor, selecione um almoxarifado específico nas configurações acima. Não é possível fazer lançamento em lote para todos os estoques simultaneamente.
+                </div>
+              ) : batchLocationItems.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-xs">
-                  Nenhum EPI cadastrado neste almoxarifado. Cadastre EPIs ou selecione outra localidade.
+                  Nenhum EPI cadastrado neste almoxarifado.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                  <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-white border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-                        <th className="py-3 px-4 w-12 text-center">Foto</th>
-                        <th className="py-3 px-4">EPI & CA</th>
-                        <th className="py-3 px-4">Categoria</th>
-                        <th className="py-3 px-4 text-center">Saldo Atual</th>
-                        <th className="py-3 px-4 w-36 text-center">Tipo</th>
-                        <th className="py-3 px-4 w-32 text-center bg-purple-50/70 text-[#660099]">
-                          {batchDefaultType === 'AJUSTE' ? (batchAdjustMode === 'DELTA' ? 'Variação (+/-)' : 'Nova Qtd') : 'QTDE'}
+                      <tr className="bg-white border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px] sm:text-[11px]">
+                        <th className="py-2 px-2 w-10 text-center">Foto</th>
+                        <th className="py-2 px-2">EPI & CA</th>
+                        <th className="py-2 px-2 hidden sm:table-cell">Categoria</th>
+                        <th className="py-2 px-2 text-center">Saldo</th>
+                        <th className="py-2 px-2 w-24 text-center">Tipo</th>
+                        <th className="py-2 px-2 w-28 text-center bg-purple-50/70 text-[#660099]">
+                          {batchDefaultType === 'AJUSTE' ? (batchAdjustMode === 'DELTA' ? '(+/-)' : 'Nova') : 'QTD'}
                         </th>
-                        <th className="py-3 px-4 text-center">Novo Saldo (Diferença)</th>
+                        <th className="py-2 px-2 text-center hidden sm:table-cell">Novo Saldo</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -918,29 +924,32 @@ export const MovementsView: React.FC = () => {
                               isMoved ? 'bg-purple-50/50' : 'hover:bg-slate-50'
                             }`}
                           >
-                            <td className="py-2.5 px-4 text-center">
+                            <td className="py-2 px-2 text-center">
                               <img 
                                 src={item.imageUrl || 'https://images.unsplash.com/photo-1584992236310-6edddc08acff?auto=format&fit=crop&q=80&w=150'} 
                                 alt={item.name} 
                                 className="w-8 h-8 rounded-full object-cover border border-purple-100 mx-auto" 
                               />
                             </td>
-                            <td className="py-2.5 px-4">
-                              <div className="font-bold text-slate-900">{item.name}</div>
-                              <div className="text-[10px] text-slate-400 font-mono">CA {item.caNumber} • {item.brand || 'Vivo'}</div>
+                            <td className="py-2 px-2 max-w-[120px] sm:max-w-none truncate">
+                              <div className="font-bold text-slate-900 truncate" title={item.name}>{item.name}</div>
+                              <div className="text-[9px] text-slate-400 font-mono truncate">CA {item.caNumber} • {item.brand || 'Vivo'}</div>
                             </td>
 
-                            <td className="py-2.5 px-4 text-slate-600 text-xs">{item.category}</td>
-
-                            <td className="py-2.5 px-4 text-center font-mono font-bold text-slate-800">
-                              {item.quantity} {item.unit}
+                            <td className="py-2 px-2 text-slate-500 text-[10px] hidden sm:table-cell truncate max-w-[100px]" title={item.category}>
+                              {item.category.substring(0, 15)}{item.category.length > 15 ? '...' : ''}
                             </td>
 
-                            <td className="py-2.5 px-4 text-center">
+                            <td className="py-2 px-2 text-center font-mono font-bold text-slate-800">
+                              {item.quantity}
+                              <span className="text-[9px] text-slate-500 ml-0.5">{item.unit}</span>
+                            </td>
+
+                            <td className="py-2 px-1 text-center">
                               <select
                                 value={entryType}
                                 onChange={(e) => handleBatchTypeChange(item.id, e.target.value as MovementType)}
-                                className={`text-xs font-semibold px-2 py-1 rounded border focus:outline-none ${
+                                className={`text-[10px] font-semibold px-1 py-1 w-full max-w-[80px] rounded border focus:outline-none ${
                                   entryType === 'SAIDA' 
                                     ? 'bg-rose-50 border-rose-200 text-rose-700' 
                                     : entryType === 'AJUSTE'
@@ -950,21 +959,21 @@ export const MovementsView: React.FC = () => {
                               >
                                 <option value="SAIDA">Saída</option>
                                 <option value="ENTRADA">Entrada</option>
-                                <option value="AJUSTE">Ajuste de Estoque</option>
+                                <option value="AJUSTE">Ajuste</option>
                               </select>
                             </td>
 
-                            <td className="py-2.5 px-4 text-center bg-purple-50/30">
+                            <td className="py-2 px-1 text-center bg-purple-50/30">
                               <input
                                 id={`batch-input-qty-${item.id}`}
                                 type="number"
                                 step="1"
                                 min={entryType === 'SAIDA' ? "0" : (isAjuste && batchAdjustMode === 'DELTA' ? undefined : "0")}
                                 max={entryType === 'SAIDA' ? item.quantity : 9999}
-                                placeholder={isAjuste ? (batchAdjustMode === 'DELTA' ? "0 (ex: -2 ou 5)" : String(item.quantity)) : "0"}
+                                placeholder={isAjuste ? (batchAdjustMode === 'DELTA' ? "+/-" : String(item.quantity)) : "0"}
                                 value={rawEntry?.qtyStr !== undefined ? rawEntry.qtyStr : (rawEntry?.qty !== undefined && rawEntry?.qty !== 0 ? String(rawEntry.qty) : '')}
                                 onChange={(e) => handleBatchQtyChange(item.id, e.target.value)}
-                                className={`w-28 text-center py-1.5 px-2 font-mono font-bold text-sm border rounded-lg focus:ring-2 focus:ring-[#660099] focus:outline-none transition-all ${
+                                className={`w-full max-w-[60px] text-center py-1 px-1 font-mono font-bold text-[11px] sm:text-xs border rounded-md focus:ring-2 focus:ring-[#660099] focus:outline-none transition-all mx-auto block ${
                                   isInvalid 
                                     ? 'border-rose-500 bg-rose-50 text-rose-700' 
                                     : isMoved 
@@ -974,13 +983,13 @@ export const MovementsView: React.FC = () => {
                               />
                             </td>
 
-                            <td className="py-2.5 px-4 text-center font-mono text-xs">
+                            <td className="py-2 px-2 text-center font-mono text-[10px] hidden sm:table-cell">
                               {isMoved ? (
                                 <div className="flex flex-col items-center">
                                   <span className={`font-bold ${isInvalid ? 'text-rose-600 font-extrabold' : 'text-slate-900'}`}>
-                                    {projectedStock} {item.unit}
+                                    {projectedStock} <span className="text-[9px] text-slate-500">{item.unit}</span>
                                   </span>
-                                  <span className={`text-[10px] font-bold ${diff >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                  <span className={`text-[9px] font-bold ${diff >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                                     ({diff >= 0 ? `+${diff}` : diff})
                                   </span>
                                 </div>
@@ -1022,7 +1031,7 @@ export const MovementsView: React.FC = () => {
                   className="flex items-center gap-2 px-6 py-3 bg-[#660099] hover:bg-[#52007a] disabled:bg-slate-300 disabled:text-slate-500 text-white rounded-xl font-extrabold text-sm shadow-lg shadow-purple-950/20 transition-all active:scale-95 cursor-pointer"
                 >
                   <PackageCheck className="w-5 h-5" />
-                  <span>Concluir Lançamento em Lote</span>
+                  <span>Concluir</span>
                 </button>
               </div>
             </div>

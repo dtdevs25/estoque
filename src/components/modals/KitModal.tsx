@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Layers, Plus, Trash2 } from 'lucide-react';
-import { useStock } from '../../context/StockContext';
+import { useStock, stripSizeFromName } from '../../context/StockContext';
 import { EpiKit, KitComponent } from '../../types';
 
 interface KitModalProps {
@@ -30,17 +30,19 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
       const isErgonomico = i.type === 'ERGONOMICO';
       const matchesType = type === 'ERGONOMICO' ? isErgonomico : !isErgonomico;
 
-      const key = i.name.trim().toLowerCase();
+      const baseName = stripSizeFromName(i.name);
+      const key = baseName.trim().toLowerCase();
+      
       if (matchesType && !map.has(key)) {
         map.set(key, {
           id: i.id,
-          name: i.name.trim(),
+          name: baseName.trim(), // Use the generic name without size
           caNumber: i.caNumber || '',
           unit: i.unit || 'un',
         });
       }
     });
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [catalogSource, type]);
 
   useEffect(() => {
@@ -310,7 +312,7 @@ export const KitModal: React.FC<KitModalProps> = ({ isOpen, onClose, kitToEdit }
                     <div className="flex-1 min-w-0">
                       {uniqueItemOptions.length > 0 ? (
                         <select
-                          value={comp.itemName}
+                          value={stripSizeFromName(comp.itemName)}
                           onChange={(e) => handleComponentItemChange(idx, e.target.value)}
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 font-medium truncate focus:ring-2 focus:ring-[#660099]"
                         >

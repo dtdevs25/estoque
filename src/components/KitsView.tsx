@@ -10,7 +10,7 @@ import {
   Grid,
   List
 } from 'lucide-react';
-import { useStock } from '../context/StockContext';
+import { useStock, stripSizeFromName } from '../context/StockContext';
 import { EpiKit } from '../types';
 import { ConfirmDeleteModal } from './modals/ConfirmDeleteModal';
 
@@ -181,7 +181,7 @@ export const KitsView: React.FC<KitsViewProps> = ({
                             <div className="w-7 h-7 rounded-lg bg-purple-50 text-[#660099] border border-purple-100 flex items-center justify-center font-bold text-xs shrink-0">
                               {idx + 1}
                             </div>
-                            <span className="font-bold text-slate-900 truncate">{comp.itemName}</span>
+                            <span className="font-bold text-slate-900 truncate">{stripSizeFromName(comp.itemName)}</span>
                           </div>
 
                           <div className="font-mono font-extrabold text-xs text-[#660099] bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 shrink-0">
@@ -270,7 +270,7 @@ export const KitsView: React.FC<KitsViewProps> = ({
                       <div className="flex flex-wrap gap-1 max-w-md">
                         {(kit.components || []).slice(0, 3).map((c, idx) => (
                           <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] border border-slate-200">
-                            {c.itemName} ({c.requiredQuantity || (c as any).quantity || 1} {c.unit || 'un'})
+                            {stripSizeFromName(c.itemName)} ({c.requiredQuantity || (c as any).quantity || 1} {c.unit || 'un'})
                           </span>
                         ))}
                         {(kit.components || []).length > 3 && (
@@ -396,7 +396,7 @@ export const KitsView: React.FC<KitsViewProps> = ({
                     <div key={i} className={`p-3 rounded-xl border text-xs ${
                       isSatisfied ? 'bg-purple-50/60 border-purple-200' : 'bg-rose-50/70 border-rose-200'
                     }`}>
-                      <div className="font-bold text-slate-800 truncate">{comp.itemName}</div>
+                      <div className="font-bold text-slate-800 truncate">{stripSizeFromName(comp.itemName)}</div>
                       <div className="mt-2 flex justify-between text-[11px]">
                         <span className="text-slate-500">Saldo: {comp.available || 0}</span>
                         <span className="text-slate-500">Necessário: {neededTotal}</span>

@@ -402,8 +402,11 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const searchName = stripSizeFromName(itemName).toLowerCase();
     
     return items.filter(i => {
-      // Must belong to the requested location (or be a global template or we want all locations)
-      if (locationId !== 'ALL' && i.locationId !== locationId && i.locationId !== 'ALL') return false;
+      // Must belong to the requested location (has stock there)
+      if (locationId !== 'ALL') {
+        const hasStock = i.stocks && i.stocks.some(s => s.locationId === locationId);
+        if (!hasStock) return false;
+      }
       
       // If it's the exact same item, always match
       if (i.id === itemId) return true;
@@ -431,7 +434,13 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const matchedItems = findAllItemsForComponent(comp.itemId, comp.itemName, locationId);
       
       // Sum the quantities of all matched items (e.g. summing all sizes)
-      const available = matchedItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      const available = matchedItems.reduce((sum, item) => {
+        if (!item.stocks) return sum;
+        const itemTotal = item.stocks
+          .filter(stock => locationId === 'ALL' || stock.locationId === locationId)
+          .reduce((s, stock) => s + (stock.quantity || 0), 0);
+        return sum + itemTotal;
+      }, 0);
       
       const reqPerKit = comp.quantity || (comp as any).requiredQuantity || 1;
       const maxKitsForThisItem = reqPerKit > 0 ? Math.floor(available / reqPerKit) : 0;

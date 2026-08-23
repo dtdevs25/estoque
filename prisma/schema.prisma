@@ -60,17 +60,16 @@ model User {
 }
 
 model Location {
-  id                 String   @id @default(uuid())
+  id                 String      @id @default(uuid())
   name               String
-  code               String   @unique
+  code               String      @unique
   address            String?
   description        String?
   responsibleName    String?
   responsibleContact String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  items EpiItem[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  stocks             ItemStock[]
 
   @@map("locations")
 }
@@ -90,8 +89,8 @@ model EpiItem {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  stocks             ItemStock[]
-  movements          StockMovement[]
+  stocks    ItemStock[]
+  movements StockMovement[]
 
   @@map("epi_items")
 }
@@ -104,8 +103,8 @@ model ItemStock {
   minQuantity Int      @default(0)
   updatedAt   DateTime @updatedAt
 
-  item        EpiItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  item     EpiItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@unique([itemId, locationId])
   @@map("item_stocks")

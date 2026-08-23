@@ -5,6 +5,21 @@ import {
 } from '../types';
 import * as api from '../services/api';
 
+// ── Utility: Strip Size from Item Name ──────────────────────────────────────
+export const stripSizeFromName = (name: string): string => {
+  if (!name) return '';
+  return name
+    // Remove "Tam 41", "Tamanho 42", "N 43", " 44", "41/42"
+    .replace(/\b(tam|tamanho|n|nº|nr|numero|#)?\s*\d{2}(?:\/\d{2})?\b/gi, '')
+    // Remove sizes P, M, G, GG, XG, EG
+    .replace(/\b(?:P|M|G|GG|XG|EG)\b/g, '')
+    // Remove trailing dashes and spaces
+    .replace(/\s*-\s*$/, '')
+    // Collapse multiple spaces
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+};
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 interface StockContextType {
@@ -383,7 +398,8 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const findAllItemsForComponent = (itemId: string, itemName: string, locationId: string): EpiItem[] => {
     if (!items || items.length === 0) return [];
     
-    const searchName = (itemName || '').trim().toLowerCase();
+    // Strip the size out of the component's name
+    const searchName = stripSizeFromName(itemName).toLowerCase();
     
     return items.filter(i => {
       // Must belong to the requested location (or be a global template)
@@ -392,12 +408,9 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // If it's the exact same item, always match
       if (i.id === itemId) return true;
       
-      // If the component's generic name is contained within this item's name
-      // This allows a component named "Calçado de Segurança" to match "Calçado de Segurança 41" and "Calçado de Segurança 42"
-      const currentName = (i.name || '').trim().toLowerCase();
+      // Compare without sizes
+      const currentName = stripSizeFromName(i.name).toLowerCase();
       
-      // Don't match if searchName is too short to avoid accidental broad matches, 
-      // but if it's explicitly set up as a component, we trust the name.
       if (searchName && currentName.includes(searchName)) {
         return true;
       }

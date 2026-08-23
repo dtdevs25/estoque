@@ -197,7 +197,13 @@ sharepointRouter.post('/sync', authenticate, requireAdmin, async (req: Request, 
           signal: AbortSignal.timeout(30_000), // 30s timeout
         });
 
-        results.push({ location: loc.name, sent: items.length, paStatus: paRes.status });
+        const paText = await paRes.text();
+        console.log(`[sharepoint/sync] Resposta do PA para ${loc.name}:`, paText);
+        
+        let paBody = null;
+        try { paBody = JSON.parse(paText); } catch (e) {}
+
+        results.push({ location: loc.name, sent: items.length, paStatus: paRes.status, paResponse: paBody });
       } catch (fetchErr) {
         console.error(`[sharepoint/sync] Erro enviando ${loc.name}:`, fetchErr);
         results.push({ location: loc.name, sent: 0, paStatus: -1 });

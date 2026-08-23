@@ -477,7 +477,7 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       kitId,
       kitName: kit.name,
       locationId,
-      locationName: loc.name,
+      locationName: locationId === 'ALL' ? 'Todas as Localidades' : (locations.find(l => l.id === locationId)?.name || 'Desconhecida'),
       maxCompleteKits,
       limitingItem,
       componentDetails,

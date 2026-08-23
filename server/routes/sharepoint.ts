@@ -166,9 +166,9 @@ sharepointRouter.post('/sync', authenticate, requireAdmin, async (req: Request, 
     const results: { location: string; sent: number; paStatus: number }[] = [];
 
     for (const loc of locations) {
-      const items = await prisma.epiItem.findMany({
+      const stocks = await prisma.itemStock.findMany({
         where: { locationId: loc.id },
-        orderBy: { name: 'asc' },
+        include: { item: true }
       });
 
       // Monta o nome da coluna a partir do code: "SPO-CAIUBI" → "CAIUBI"
@@ -183,11 +183,11 @@ sharepointRouter.post('/sync', authenticate, requireAdmin, async (req: Request, 
         lastInventoryDate: new Date().toLocaleDateString('pt-BR', {
           day: '2-digit', month: '2-digit', year: 'numeric',
         }),
-        items: items.map(i => ({
-          descricao: i.name,
+        items: stocks.map(s => ({
+          descricao: s.item.name,
           // Tamanho/variante fica em `description` no modelo atual
-          tamanho: i.description || 'UN',
-          quantidade: i.quantity,
+          tamanho: s.item.description || 'UN',
+          quantidade: s.quantity,
         })),
         syncedAt: new Date().toISOString(),
       };
@@ -365,11 +365,14 @@ sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request,
         continue;
       }
 
-      const dbItems = await prisma.epiItem.findMany({ where: { locationId: dbLocation.id } });
+      const dbStocks = await prisma.itemStock.findMany({ 
+        where: { locationId: dbLocation.id },
+        include: { item: true }
+      });
 
       let matched = 0, updated = 0, skipped = 0, zeroed = 0;
       const notFound: string[] = [];
-      const matchedDbItemIds = new Set<string>();
+      const matchedDbStockIds = new Set<string>();
 
       for (const spItem of locPayload.items) {
         if (!spItem.descricao) continue;
@@ -378,31 +381,45 @@ sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request,
         const spTam  = normalize(spItem.tamanho || '');
 
         // Tentativa 1: nome exato
-        let dbItem = dbItems.find(i => normalize(i.name) === spNorm);
+        let dbStock = dbStocks.find(s => normalize(s.item.name) === spNorm);
         // Tentativa 2: nome + tamanho concatenado
-        if (!dbItem && spTam && spTam !== 'UN') {
-          dbItem = dbItems.find(i => normalize(i.name) === `${spNorm} ${spTam}`);
+        if (!dbStock && spTam && spTam !== 'UN') {
+          dbStock = dbStocks.find(s => normalize(s.item.name) === `${spNorm} ${spTam}`);
         }
-        // Tentativa 3: correspondência parcial
         // Tentativa 3: Inteligência artificial leve (Fuzzy Matching)
-        if (!dbItem) {
-          dbItem = dbItems.find(i => fuzzyMatch(i.name, `${spItem.descricao} ${spItem.tamanho || ''}`));
+        if (!dbStock) {
+          dbStock = dbStocks.find(s => fuzzyMatch(s.item.name, `${spItem.descricao} ${spItem.tamanho || ''}`));
         }
 
-        if (!dbItem) {
+        if (!dbStock) {
+          const allItems = await prisma.epiItem.findMany();
+          let dbItem = allItems.find(i => normalize(i.name) === spNorm || normalize(i.name) === `${spNorm} ${spTam}` || fuzzyMatch(i.name, `${spItem.descricao} ${spItem.tamanho || ''}`));
+          
+          if (dbItem) {
+            dbStock = await prisma.itemStock.create({
+              data: { itemId: dbItem.id, locationId: dbLocation.id, quantity: 0, minQuantity: 0 },
+              include: { item: true }
+            });
+            dbStocks.push(dbStock);
+          }
+        }
+
+        if (!dbStock) {
           notFound.push(`${spItem.descricao}${spItem.tamanho && spItem.tamanho !== 'UN' ? ` (${spItem.tamanho})` : ''}`);
           continue;
         }
 
         matched++;
-        matchedDbItemIds.add(dbItem.id);
+        matchedDbStockIds.add(dbStock.id);
 
-        if (dbItem.quantity === spItem.quantidade) { skipped++; continue; }
+        if (dbStock.quantity === spItem.quantidade) { skipped++; continue; }
 
-        const prev = dbItem.quantity;
+        const prev = dbStock.quantity;
         const next = spItem.quantidade;
 
-        await prisma.epiItem.update({ where: { id: dbItem.id }, data: { quantity: next } });
+        await prisma.itemStock.update({ where: { id: dbStock.id }, data: { quantity: next } });
+        
+        const dbItem = dbStock.item;
         await prisma.stockMovement.create({
           data: {
             type: 'AJUSTE',
@@ -420,12 +437,12 @@ sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request,
         updated++;
       }
 
-      // Regra de Exclusão (Saneamento): Itens no banco que não vieram da planilha devem ser DELETADOS
-      for (const item of dbItems) {
-        if (!matchedDbItemIds.has(item.id)) {
-          // Deleta o item (graças ao onDelete: Cascade no Prisma, os movimentos relacionados também somem, mantendo o banco 100% limpo)
-          await prisma.epiItem.delete({ where: { id: item.id } });
-          zeroed++; // Reutilizando a variável 'zeroed' para contar deletados
+      // Regra de Exclusão (Saneamento): Estoques no banco que não vieram da planilha devem ser zerados/deletados
+      for (const stock of dbStocks) {
+        if (!matchedDbStockIds.has(stock.id)) {
+          // Em vez de deletar o EPI, deletamos apenas o vínculo de estoque para este local
+          await prisma.itemStock.delete({ where: { id: stock.id } });
+          zeroed++;
           updated++;
         }
       }
@@ -569,7 +586,11 @@ sharepointRouter.post('/ingest', async (req: Request, res: Response) => {
         continue;
       }
 
-      const dbItems = await prisma.epiItem.findMany({ where: { locationId: dbLocation.id } });
+      // Busca o estoque daquela localidade
+      const dbStocks = await prisma.itemStock.findMany({ 
+        where: { locationId: dbLocation.id },
+        include: { item: true }
+      });
 
       let matched = 0;
       let updated = 0;
@@ -584,19 +605,33 @@ sharepointRouter.post('/ingest', async (req: Request, res: Response) => {
 
         // Tenta encontrar o item no banco por correspondência de nome normalizado
         // Prioridade: nome exato → nome contém
-        let dbItem = dbItems.find(i => normalize(i.name) === spNorm);
+        let dbStock = dbStocks.find(s => normalize(s.item.name) === spNorm);
 
         // Se não encontrou exato, tenta com nome + tamanho concatenado
-        if (!dbItem && spTam && spTam !== 'UN') {
-          dbItem = dbItems.find(i => normalize(i.name) === `${spNorm} ${spTam}`);
+        if (!dbStock && spTam && spTam !== 'UN') {
+          dbStock = dbStocks.find(s => normalize(s.item.name) === `${spNorm} ${spTam}`);
         }
 
         // Tentativa mais abrangente: nome contém a descrição
-        if (!dbItem) {
-          dbItem = dbItems.find(i => normalize(i.name).includes(spNorm) || spNorm.includes(normalize(i.name)));
+        if (!dbStock) {
+          dbStock = dbStocks.find(s => normalize(s.item.name).includes(spNorm) || spNorm.includes(normalize(s.item.name)));
         }
 
-        if (!dbItem) {
+        // Se não achar no estoque, tenta ver se o item existe genericamente para criar o estoque
+        if (!dbStock) {
+          const allItems = await prisma.epiItem.findMany();
+          let dbItem = allItems.find(i => normalize(i.name) === spNorm || normalize(i.name) === `${spNorm} ${spTam}` || normalize(i.name).includes(spNorm) || spNorm.includes(normalize(i.name)));
+          
+          if (dbItem) {
+            dbStock = await prisma.itemStock.create({
+              data: { itemId: dbItem.id, locationId: dbLocation.id, quantity: 0, minQuantity: 0 },
+              include: { item: true }
+            });
+            dbStocks.push(dbStock);
+          }
+        }
+
+        if (!dbStock) {
           notFound.push(`${spItem.descricao}${spItem.tamanho ? ` (${spItem.tamanho})` : ''}`);
           continue;
         }
@@ -604,18 +639,20 @@ sharepointRouter.post('/ingest', async (req: Request, res: Response) => {
         matched++;
 
         // Só atualiza se a quantidade for diferente
-        if (dbItem.quantity === spItem.quantidade) {
+        if (dbStock.quantity === spItem.quantidade) {
           skipped++;
           continue;
         }
 
-        const prev = dbItem.quantity;
+        const prev = dbStock.quantity;
         const next = spItem.quantidade;
 
-        await prisma.epiItem.update({
-          where: { id: dbItem.id },
+        await prisma.itemStock.update({
+          where: { id: dbStock.id },
           data: { quantity: next },
         });
+
+        const dbItem = dbStock.item;
 
         await prisma.stockMovement.create({
           data: {

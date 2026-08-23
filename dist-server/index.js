@@ -211,20 +211,6 @@ async function sendPasswordResetEmail(to, name, token) {
     html: getBaseEmailHtml("Redefini\xE7\xE3o de Senha", "Solicita\xE7\xE3o de nova senha de acesso", content, url, "Redefinir Senha")
   });
 }
-async function sendLowStockAlert(itemName, locationName, quantity, minQuantity) {
-  try {
-    const webhookUrl = process.env.N8N_WEBHOOK_ESTOQUE_BAIXO;
-    if (webhookUrl) {
-      await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemName, locationName, quantity, minQuantity, timestamp: (/* @__PURE__ */ new Date()).toISOString() })
-      });
-    }
-  } catch (e) {
-    console.warn("N8N webhook failed:", e);
-  }
-}
 
 // server/routes/auth.ts
 var authRouter = Router();
@@ -552,15 +538,21 @@ var itemsRouter = Router4();
 itemsRouter.use(authenticate);
 itemsRouter.get("/", async (_req, res) => {
   try {
-    const items = await prisma.epiItem.findMany({ orderBy: { name: "asc" } });
-    res.json(items);
+    const items2 = await prisma.epiItem.findMany({
+      include: { stocks: true },
+      orderBy: { name: "asc" }
+    });
+    res.json(items2);
   } catch {
     res.status(500).json({ message: "Erro ao listar itens." });
   }
 });
 itemsRouter.get("/:id", async (req, res) => {
   try {
-    const item = await prisma.epiItem.findUnique({ where: { id: req.params.id } });
+    const item = await prisma.epiItem.findUnique({
+      where: { id: req.params.id },
+      include: { stocks: true }
+    });
     if (!item) {
       res.status(404).json({ message: "Item n\xE3o encontrado." });
       return;
@@ -572,31 +564,47 @@ itemsRouter.get("/:id", async (req, res) => {
 });
 itemsRouter.post("/", requireAdminOrController, async (req, res) => {
   try {
-    const { name, type, caNumber, caExpiry, brand, category, protectionCategory, unit, quantity, minQuantity, imageUrl, description, locationId } = req.body;
-    if (!name || !category || !unit || !locationId) {
-      res.status(400).json({ message: "Nome, categoria, unidade e localidade s\xE3o obrigat\xF3rios." });
+    const { name, type, caNumber, caExpiry, brand, category, protectionCategory, unit, imageUrl, description, stocks } = req.body;
+    if (!name || !category || !unit) {
+      res.status(400).json({ message: "Nome, categoria e unidade s\xE3o obrigat\xF3rios." });
       return;
     }
     const item = await prisma.epiItem.create({
-      data: { name, type: type || "EPI", caNumber, caExpiry, brand, category, protectionCategory, unit, quantity: quantity || 0, minQuantity: minQuantity || 0, imageUrl, description, locationId }
+      data: { name, type: type || "EPI", caNumber, caExpiry, brand, category, protectionCategory, unit, imageUrl, description }
     });
-    if (quantity > 0) {
-      const location = await prisma.location.findUnique({ where: { id: locationId } });
-      await prisma.stockMovement.create({
-        data: {
-          type: "INICIAL",
-          quantity,
-          previousQuantity: 0,
-          newQuantity: quantity,
-          itemId: item.id,
-          itemName: item.name,
-          locationId,
-          locationName: location?.name || locationId,
-          reason: "Cadastro inicial do item"
+    if (stocks && Array.isArray(stocks)) {
+      for (const stock of stocks) {
+        if (stock.locationId) {
+          const qty = Number(stock.quantity) || 0;
+          await prisma.itemStock.create({
+            data: {
+              itemId: item.id,
+              locationId: stock.locationId,
+              quantity: qty,
+              minQuantity: Number(stock.minQuantity) || 0
+            }
+          });
+          if (qty > 0) {
+            const location = await prisma.location.findUnique({ where: { id: stock.locationId } });
+            await prisma.stockMovement.create({
+              data: {
+                type: "INICIAL",
+                quantity: qty,
+                previousQuantity: 0,
+                newQuantity: qty,
+                itemId: item.id,
+                itemName: item.name,
+                locationId: stock.locationId,
+                locationName: location?.name || stock.locationId,
+                reason: "Cadastro inicial do item"
+              }
+            });
+          }
         }
-      });
+      }
     }
-    res.status(201).json(item);
+    const itemWithStocks = await prisma.epiItem.findUnique({ where: { id: item.id }, include: { stocks: true } });
+    res.status(201).json(itemWithStocks);
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "Erro ao criar item." });
@@ -604,89 +612,39 @@ itemsRouter.post("/", requireAdminOrController, async (req, res) => {
 });
 itemsRouter.put("/:id", requireAdminOrController, async (req, res) => {
   try {
-    const { name, type, caNumber, caExpiry, brand, category, protectionCategory, unit, quantity, minQuantity, imageUrl, description, locationId } = req.body;
-    let itemId = req.params.id;
-    if (itemId.startsWith("virtual-")) {
-      const parts = itemId.split("-");
-      const realItemId = parts[1];
-      const locId = locationId || parts[parts.length - 1];
-      const sourceItem = await prisma.epiItem.findUnique({ where: { id: realItemId } });
-      if (sourceItem) {
-        let existing = await prisma.epiItem.findFirst({
-          where: { name: sourceItem.name, locationId: locId }
-        });
-        if (!existing) {
-          existing = await prisma.epiItem.create({
-            data: {
-              name: name || sourceItem.name,
-              type: type || sourceItem.type,
-              caNumber: caNumber || sourceItem.caNumber,
-              caExpiry: caExpiry || sourceItem.caExpiry,
-              brand: brand || sourceItem.brand,
-              category: category || sourceItem.category,
-              protectionCategory: protectionCategory || sourceItem.protectionCategory,
-              unit: unit || sourceItem.unit,
-              quantity: quantity !== void 0 ? Number(quantity) : 0,
-              minQuantity: minQuantity !== void 0 ? Number(minQuantity) : sourceItem.minQuantity,
-              imageUrl: imageUrl || sourceItem.imageUrl,
-              description: description || sourceItem.description,
-              locationId: locId
+    const { name, type, caNumber, caExpiry, brand, category, protectionCategory, unit, imageUrl, description, stocks } = req.body;
+    const itemId = req.params.id;
+    const updated = await prisma.epiItem.update({
+      where: { id: itemId },
+      data: { name, type, caNumber, caExpiry, brand, category, protectionCategory, unit, imageUrl, description }
+    });
+    if (stocks && Array.isArray(stocks)) {
+      for (const stock of stocks) {
+        if (stock.locationId) {
+          await prisma.itemStock.upsert({
+            where: {
+              itemId_locationId: {
+                itemId,
+                locationId: stock.locationId
+              }
+            },
+            update: {
+              minQuantity: Number(stock.minQuantity) || 0
+              // we don't update quantity directly via PUT to avoid bypassing stock movements
+            },
+            create: {
+              itemId,
+              locationId: stock.locationId,
+              quantity: 0,
+              // must use movements to add quantity
+              minQuantity: Number(stock.minQuantity) || 0
             }
           });
         }
-        itemId = existing.id;
       }
     }
-    const currentItem = await prisma.epiItem.findUnique({ where: { id: itemId } });
-    if (!currentItem) {
-      res.status(404).json({ message: "Item n\xE3o encontrado." });
-      return;
-    }
-    if (quantity !== void 0 && Number(quantity) !== currentItem.quantity) {
-      const diff = Number(quantity) - currentItem.quantity;
-      const movType = diff > 0 ? "ENTRADA" : "SAIDA";
-      const absDiff = Math.abs(diff);
-      const location = await prisma.location.findUnique({ where: { id: currentItem.locationId } });
-      await prisma.stockMovement.create({
-        data: {
-          type: movType,
-          quantity: absDiff,
-          previousQuantity: currentItem.quantity,
-          newQuantity: Number(quantity),
-          itemId: currentItem.id,
-          itemName: name || currentItem.name,
-          locationId: currentItem.locationId,
-          locationName: location?.name || currentItem.locationId,
-          reason: "Ajuste manual de estoque via edi\xE7\xE3o de item"
-        }
-      });
-    }
-    if (name || caNumber || brand || category || unit || imageUrl || description) {
-      await prisma.epiItem.updateMany({
-        where: { name: currentItem.name },
-        data: {
-          ...name ? { name } : {},
-          ...type ? { type } : {},
-          ...caNumber ? { caNumber } : {},
-          ...caExpiry ? { caExpiry } : {},
-          ...brand ? { brand } : {},
-          ...category ? { category } : {},
-          ...protectionCategory ? { protectionCategory } : {},
-          ...unit ? { unit } : {},
-          ...minQuantity !== void 0 ? { minQuantity: Number(minQuantity) } : {},
-          ...imageUrl ? { imageUrl } : {},
-          ...description ? { description } : {}
-        }
-      });
-    }
-    const updated = await prisma.epiItem.update({
-      where: { id: itemId },
-      data: {
-        ...quantity !== void 0 ? { quantity: Number(quantity) } : {},
-        ...locationId ? { locationId } : {}
-      }
-    });
-    res.json(updated);
+    const itemWithStocks = await prisma.epiItem.findUnique({ where: { id: itemId }, include: { stocks: true } });
+    res.json(itemWithStocks);
   } catch (e) {
     console.error("Error updating item:", e);
     res.status(500).json({ message: "Erro ao atualizar item." });
@@ -694,22 +652,9 @@ itemsRouter.put("/:id", requireAdminOrController, async (req, res) => {
 });
 itemsRouter.delete("/:id", requireAdmin, async (req, res) => {
   try {
-    let itemId = req.params.id;
-    if (itemId.startsWith("virtual-")) {
-      const parts = itemId.split("-");
-      const realItemId = parts[1];
-      const locId = parts[parts.length - 1];
-      const sourceItem = await prisma.epiItem.findUnique({ where: { id: realItemId } });
-      if (sourceItem) {
-        const existing = await prisma.epiItem.findFirst({ where: { name: sourceItem.name, locationId: locId } });
-        if (existing) itemId = existing.id;
-        else {
-          res.json({ success: true });
-          return;
-        }
-      }
-    }
+    const itemId = req.params.id;
     await prisma.stockMovement.deleteMany({ where: { itemId } });
+    await prisma.itemStock.deleteMany({ where: { itemId } });
     await prisma.epiItem.delete({ where: { id: itemId } });
     res.json({ success: true });
   } catch {
@@ -809,364 +754,249 @@ kitsRouter.delete("/:id", requireAdmin, async (req, res) => {
 import { Router as Router6 } from "express";
 var movementsRouter = Router6();
 movementsRouter.use(authenticate);
-async function getOrCreateItemForLocation(itemId, targetLocationId) {
-  if (itemId.startsWith("virtual-")) {
-    const parts = itemId.split("-");
-    const locationId = targetLocationId || parts[parts.length - 1];
-    const realItemId = parts[1];
-    const sourceItem = await prisma.epiItem.findUnique({ where: { id: realItemId } });
-    if (sourceItem && locationId) {
-      let existing = await prisma.epiItem.findFirst({
-        where: { name: sourceItem.name, locationId }
-      });
-      if (!existing) {
-        existing = await prisma.epiItem.create({
-          data: {
-            name: sourceItem.name,
-            type: sourceItem.type,
-            caNumber: sourceItem.caNumber,
-            caExpiry: sourceItem.caExpiry,
-            brand: sourceItem.brand,
-            category: sourceItem.category,
-            protectionCategory: sourceItem.protectionCategory,
-            unit: sourceItem.unit,
-            quantity: 0,
-            minQuantity: sourceItem.minQuantity,
-            imageUrl: sourceItem.imageUrl,
-            description: sourceItem.description,
-            locationId
-          }
-        });
-      }
-      return existing;
-    }
-  }
-  return await prisma.epiItem.findUnique({ where: { id: itemId }, include: { location: true } });
-}
-async function checkLowStock(itemId) {
-  const item = await prisma.epiItem.findUnique({
-    where: { id: itemId },
-    include: { location: true }
+async function getOrCreateItemStock(tx, itemId, locationId) {
+  const stock = await tx.itemStock.findUnique({
+    where: { itemId_locationId: { itemId, locationId } }
   });
-  if (item && item.quantity <= item.minQuantity && item.minQuantity > 0) {
-    await sendLowStockAlert(item.name, item.location.name, item.quantity, item.minQuantity);
-  }
+  if (stock) return stock;
+  const newItemStock = await tx.itemStock.create({
+    data: {
+      itemId,
+      locationId,
+      quantity: 0,
+      minQuantity: 0
+    }
+  });
+  return newItemStock;
 }
-movementsRouter.get("/", async (req, res) => {
+movementsRouter.get("/", async (_req, res) => {
   try {
-    const { locationId, itemId, limit } = req.query;
-    const movements = await prisma.stockMovement.findMany({
-      where: {
-        ...locationId && locationId !== "ALL" ? { locationId: String(locationId) } : {},
-        ...itemId ? { itemId: String(itemId) } : {}
-      },
+    const movs = await prisma.stockMovement.findMany({
       orderBy: { createdAt: "desc" },
-      take: limit ? parseInt(String(limit)) : 500
+      take: 1500
     });
-    res.json(movements.map((m) => ({ ...m, timestamp: m.createdAt.toISOString() })));
+    res.json(movs);
   } catch {
     res.status(500).json({ message: "Erro ao listar movimenta\xE7\xF5es." });
   }
 });
-movementsRouter.post("/entry", requireAdminOrController, async (req, res) => {
+movementsRouter.post("/single", async (req, res) => {
   try {
-    const { itemId, quantity, reason, employeeName, employeeRole, employeeRegistration, notes } = req.body;
-    if (!itemId || !quantity || quantity <= 0) {
-      res.status(400).json({ message: "Item e quantidade s\xE3o obrigat\xF3rios." });
-      return;
+    const { itemId, type, quantity, reason, employeeName, employeeRole, employeeRegistration, notes } = req.body;
+    const { locationId } = req.body;
+    if (!locationId) {
+      return res.status(400).json({ message: "Obrigat\xF3rio informar a localidade (locationId)." });
     }
-    const item = await getOrCreateItemForLocation(itemId);
-    if (!item) {
-      res.status(404).json({ message: "Item n\xE3o encontrado." });
-      return;
-    }
-    const location = await prisma.location.findUnique({ where: { id: item.locationId } });
-    const prev = item.quantity;
-    const newQty = prev + quantity;
-    const [updated, movement] = await prisma.$transaction([
-      prisma.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } }),
-      prisma.stockMovement.create({
-        data: {
-          type: "ENTRADA",
-          quantity,
-          previousQuantity: prev,
-          newQuantity: newQty,
-          itemId: item.id,
-          itemName: item.name,
-          locationId: item.locationId,
-          locationName: location?.name || item.locationId,
-          employeeName,
-          employeeRole,
-          employeeRegistration,
-          reason,
-          notes,
-          userId: req.user.id
-        }
-      })
-    ]);
-    res.json({ item: updated, movement: { ...movement, timestamp: movement.createdAt.toISOString() } });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Erro ao registrar entrada." });
-  }
-});
-movementsRouter.post("/exit", requireAdminOrController, async (req, res) => {
-  try {
-    const { itemId, quantity, reason, employeeName, employeeRole, employeeRegistration, notes } = req.body;
-    const item = await getOrCreateItemForLocation(itemId);
-    if (!item) {
-      res.status(404).json({ message: "Item n\xE3o encontrado." });
-      return;
-    }
-    if (item.quantity < quantity) {
-      res.status(400).json({ message: "Saldo insuficiente." });
-      return;
-    }
-    const location = await prisma.location.findUnique({ where: { id: item.locationId } });
-    const prev = item.quantity;
-    const newQty = prev - quantity;
-    const [updated, movement] = await prisma.$transaction([
-      prisma.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } }),
-      prisma.stockMovement.create({
-        data: {
-          type: "SAIDA",
-          quantity,
-          previousQuantity: prev,
-          newQuantity: newQty,
-          itemId: item.id,
-          itemName: item.name,
-          locationId: item.locationId,
-          locationName: location?.name || item.locationId,
-          employeeName,
-          employeeRole,
-          employeeRegistration,
-          reason,
-          notes,
-          userId: req.user.id
-        }
-      })
-    ]);
-    await checkLowStock(item.id);
-    res.json({ item: updated, movement: { ...movement, timestamp: movement.createdAt.toISOString() } });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Erro ao registrar sa\xEDda." });
-  }
-});
-movementsRouter.post("/adjust", requireAdminOrController, async (req, res) => {
-  try {
-    const { itemId, newQuantity, reason, notes } = req.body;
-    if (!itemId || newQuantity === void 0 || newQuantity === null || newQuantity < 0) {
-      res.status(400).json({ message: "Item e nova quantidade s\xE3o obrigat\xF3rios." });
-      return;
-    }
-    const item = await getOrCreateItemForLocation(itemId);
-    if (!item) {
-      res.status(404).json({ message: "Item n\xE3o encontrado." });
-      return;
-    }
-    const location = await prisma.location.findUnique({ where: { id: item.locationId } });
-    const prev = item.quantity;
-    const targetQty = Number(newQuantity);
-    const diff = Math.abs(targetQty - prev);
-    const [updated, movement] = await prisma.$transaction([
-      prisma.epiItem.update({ where: { id: item.id }, data: { quantity: targetQty } }),
-      prisma.stockMovement.create({
-        data: {
-          type: "AJUSTE",
-          quantity: diff,
-          previousQuantity: prev,
-          newQuantity: targetQty,
-          itemId: item.id,
-          itemName: item.name,
-          locationId: item.locationId,
-          locationName: location?.name || item.locationId,
-          reason: reason || `Ajuste de Estoque / Balan\xE7o (De: ${prev} para: ${targetQty})`,
-          notes,
-          userId: req.user.id
-        }
-      })
-    ]);
-    await checkLowStock(item.id);
-    res.json({ item: updated, movement: { ...movement, timestamp: movement.createdAt.toISOString() } });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Erro ao registrar ajuste de estoque." });
-  }
-});
-movementsRouter.post("/batch", requireAdminOrController, async (req, res) => {
-  try {
-    const { locationId, entries, reason, employeeName, employeeRole, employeeRegistration, isDailyClosing, notes } = req.body;
-    let fallbackLocationName = "Almoxarifado Geral";
-    if (locationId && locationId !== "ALL") {
-      const location = await prisma.location.findUnique({ where: { id: locationId } });
-      if (location) fallbackLocationName = location.name;
-    }
-    const results = [];
-    for (const entry of entries) {
-      const targetLoc = locationId && locationId !== "ALL" ? locationId : void 0;
-      const item = await getOrCreateItemForLocation(entry.itemId, targetLoc);
-      if (!item) continue;
-      const prev = item.quantity;
-      let mType = entry.type;
-      let newQty = prev;
-      let qtyDiff = entry.quantity;
-      if (mType === "AJUSTE") {
-        newQty = Number(entry.newQuantity !== void 0 ? entry.newQuantity : entry.quantity);
-        qtyDiff = Math.abs(newQty - prev);
-      } else if (mType === "ENTRADA") {
-        if (entry.quantity <= 0) continue;
-        newQty = prev + entry.quantity;
-      } else {
-        mType = "SAIDA";
-        if (entry.quantity <= 0) continue;
-        newQty = prev - entry.quantity;
-        if (newQty < 0) continue;
-      }
-      const itemLoc = item.locationId ? await prisma.location.findUnique({ where: { id: item.locationId } }) : null;
-      const locName = itemLoc?.name || fallbackLocationName;
-      const [updated, movement] = await prisma.$transaction([
-        prisma.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } }),
-        prisma.stockMovement.create({
-          data: {
-            type: mType,
-            quantity: qtyDiff,
-            previousQuantity: prev,
-            newQuantity: newQty,
-            itemId: item.id,
-            itemName: item.name,
-            locationId: item.locationId || locationId || "ALL",
-            locationName: locName,
-            employeeName,
-            employeeRole,
-            employeeRegistration,
-            reason: mType === "AJUSTE" ? reason ? `Ajuste em Lote: ${reason}` : `Ajuste de Estoque / Invent\xE1rio (${prev} \u2192 ${newQty})` : isDailyClosing ? `Baixa Di\xE1ria: ${reason}` : reason,
-            notes: entry.notes || notes,
-            userId: req.user.id
-          }
-        })
-      ]);
-      await checkLowStock(item.id);
-      results.push({ item: updated, movement });
-    }
-    res.json({ count: results.length, results });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Erro ao processar baixa em lote." });
-  }
-});
-movementsRouter.post("/transfer", requireAdminOrController, async (req, res) => {
-  try {
-    const { sourceItemId, targetLocationId, quantity, reason, notes } = req.body;
-    const sourceItem = await getOrCreateItemForLocation(sourceItemId);
-    if (!sourceItem) {
-      res.status(404).json({ message: "Item de origem n\xE3o encontrado." });
-      return;
-    }
-    if (sourceItem.locationId === targetLocationId) {
-      res.status(400).json({ message: "Origem e destino s\xE3o iguais." });
-      return;
-    }
-    if (sourceItem.quantity < quantity) {
-      res.status(400).json({ message: "Saldo insuficiente para transfer\xEAncia." });
-      return;
-    }
-    const sourceLocation = await prisma.location.findUnique({ where: { id: sourceItem.locationId } });
-    const targetLocation = await prisma.location.findUnique({ where: { id: targetLocationId } });
-    if (!targetLocation) {
-      res.status(404).json({ message: "Localidade de destino n\xE3o encontrada." });
-      return;
-    }
-    const prevSrc = sourceItem.quantity;
-    const newSrc = prevSrc - quantity;
-    let targetItem = await prisma.epiItem.findFirst({
-      where: { locationId: targetLocationId, name: sourceItem.name }
-    });
-    if (!targetItem) {
-      targetItem = await prisma.epiItem.create({
-        data: {
-          name: sourceItem.name,
-          type: sourceItem.type,
-          caNumber: sourceItem.caNumber,
-          caExpiry: sourceItem.caExpiry,
-          brand: sourceItem.brand,
-          category: sourceItem.category,
-          protectionCategory: sourceItem.protectionCategory,
-          unit: sourceItem.unit,
-          quantity: 0,
-          minQuantity: sourceItem.minQuantity,
-          imageUrl: sourceItem.imageUrl,
-          description: sourceItem.description,
-          locationId: targetLocationId
-        }
-      });
-    }
-    const prevTarget = targetItem.quantity;
-    const newTarget = prevTarget + quantity;
+    const qty = Number(quantity);
+    if (qty <= 0) return res.status(400).json({ message: "Quantidade deve ser maior que zero." });
     await prisma.$transaction(async (tx) => {
-      await tx.epiItem.update({ where: { id: sourceItem.id }, data: { quantity: newSrc } });
-      await tx.epiItem.update({ where: { id: targetItem.id }, data: { quantity: newTarget } });
-      await tx.stockMovement.createMany({
-        data: [
-          {
-            type: "TRANSFERENCIA_SAIDA",
-            quantity,
-            previousQuantity: prevSrc,
-            newQuantity: newSrc,
-            itemId: sourceItem.id,
-            itemName: sourceItem.name,
-            locationId: sourceItem.locationId,
-            locationName: sourceLocation?.name || sourceItem.locationId,
-            reason,
-            notes,
-            userId: req.user.id
-          },
-          {
-            type: "TRANSFERENCIA_ENTRADA",
-            quantity,
-            previousQuantity: prevTarget,
-            newQuantity: newTarget,
-            itemId: targetItem.id,
-            itemName: targetItem.name,
-            locationId: targetLocationId,
-            locationName: targetLocation.name,
-            reason,
-            notes,
-            userId: req.user.id
-          }
-        ]
+      const item = await tx.epiItem.findUnique({ where: { id: itemId } });
+      if (!item) throw new Error("Item n\xE3o encontrado.");
+      const location = await tx.location.findUnique({ where: { id: locationId } });
+      if (!location) throw new Error("Localidade n\xE3o encontrada.");
+      const stock = await getOrCreateItemStock(tx, itemId, locationId);
+      const prev = stock.quantity;
+      let newQty = prev;
+      if (type === "SAIDA") {
+        if (prev < qty) throw new Error(`Saldo insuficiente. Saldo atual: ${prev}`);
+        newQty = prev - qty;
+      } else if (type === "ENTRADA") {
+        newQty = prev + qty;
+      }
+      await tx.itemStock.update({ where: { id: stock.id }, data: { quantity: newQty } });
+      await tx.stockMovement.create({
+        data: {
+          type,
+          quantity: qty,
+          previousQuantity: prev,
+          newQuantity: newQty,
+          itemId: item.id,
+          itemName: item.name,
+          locationId,
+          locationName: location.name,
+          employeeName,
+          employeeRole,
+          employeeRegistration,
+          reason,
+          notes,
+          userId: req.user.id
+        }
       });
     });
     res.json({ success: true });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Erro ao realizar transfer\xEAncia." });
+    res.status(400).json({ message: e.message || "Erro ao registrar movimenta\xE7\xE3o." });
   }
 });
-movementsRouter.post("/deliver-kit", requireAdminOrController, async (req, res) => {
+movementsRouter.post("/batch", async (req, res) => {
+  try {
+    const { locationId, entries, reason, employeeName, employeeRole, employeeRegistration, isDailyClosing, notes, customDate } = req.body;
+    if (!entries || !Array.isArray(entries) || entries.length === 0) {
+      return res.status(400).json({ message: "Lote vazio." });
+    }
+    let count = 0;
+    await prisma.$transaction(async (tx) => {
+      const location = await tx.location.findUnique({ where: { id: locationId } });
+      if (!location) throw new Error("Localidade n\xE3o encontrada.");
+      for (const entry of entries) {
+        const item = await tx.epiItem.findUnique({ where: { id: entry.itemId } });
+        if (!item) continue;
+        const stock = await getOrCreateItemStock(tx, item.id, locationId);
+        const type = entry.type;
+        const eQty = Number(entry.quantity);
+        let qtyToMove = eQty;
+        const prev = stock.quantity;
+        let newQty = prev;
+        if (type === "AJUSTE") {
+          newQty = Number(entry.newQuantity);
+          qtyToMove = Math.abs(newQty - prev);
+          if (qtyToMove === 0) continue;
+        } else if (type === "SAIDA") {
+          if (prev < eQty) throw new Error(`Saldo insuficiente para "${item.name}".`);
+          newQty = prev - eQty;
+        } else if (type === "ENTRADA") {
+          newQty = prev + eQty;
+        }
+        await tx.itemStock.update({ where: { id: stock.id }, data: { quantity: newQty } });
+        const createdAt = customDate ? new Date(customDate) : /* @__PURE__ */ new Date();
+        await tx.stockMovement.create({
+          data: {
+            type,
+            quantity: qtyToMove,
+            previousQuantity: prev,
+            newQuantity: newQty,
+            itemId: item.id,
+            itemName: item.name,
+            locationId,
+            locationName: location.name,
+            employeeName,
+            employeeRole,
+            employeeRegistration,
+            reason,
+            notes: entry.notes || notes,
+            userId: req.user.id,
+            createdAt
+          }
+        });
+        count++;
+      }
+    });
+    res.json({ success: true, count });
+  } catch (e) {
+    res.status(400).json({ message: e.message || "Erro ao registrar lote." });
+  }
+});
+movementsRouter.post("/transfer", async (req, res) => {
+  try {
+    const { sourceItemId, targetLocationId, quantity, reason, employeeName, notes } = req.body;
+    const qty = Number(quantity);
+    if (qty <= 0) return res.status(400).json({ message: "Quantidade inv\xE1lida." });
+    const { sourceLocationId } = req.body;
+    if (!sourceLocationId) return res.status(400).json({ message: "Obrigat\xF3rio informar sourceLocationId." });
+    await prisma.$transaction(async (tx) => {
+      const item = await tx.epiItem.findUnique({ where: { id: sourceItemId } });
+      if (!item) throw new Error("Item origem n\xE3o encontrado.");
+      const sourceStock = await getOrCreateItemStock(tx, sourceItemId, sourceLocationId);
+      const targetStock = await getOrCreateItemStock(tx, sourceItemId, targetLocationId);
+      const sourceLocation = await tx.location.findUnique({ where: { id: sourceLocationId } });
+      const targetLocation = await tx.location.findUnique({ where: { id: targetLocationId } });
+      if (sourceStock.quantity < qty) throw new Error("Saldo insuficiente na origem.");
+      const srcPrev = sourceStock.quantity;
+      const srcNew = srcPrev - qty;
+      await tx.itemStock.update({ where: { id: sourceStock.id }, data: { quantity: srcNew } });
+      await tx.stockMovement.create({
+        data: {
+          type: "TRANSFERENCIA_SAIDA",
+          quantity: qty,
+          previousQuantity: srcPrev,
+          newQuantity: srcNew,
+          itemId: item.id,
+          itemName: item.name,
+          locationId: sourceLocationId,
+          locationName: sourceLocation.name,
+          employeeName,
+          reason: `Transfer\xEAncia para ${targetLocation.name}`,
+          notes,
+          userId: req.user.id
+        }
+      });
+      const tgtPrev = targetStock.quantity;
+      const tgtNew = tgtPrev + qty;
+      await tx.itemStock.update({ where: { id: targetStock.id }, data: { quantity: tgtNew } });
+      await tx.stockMovement.create({
+        data: {
+          type: "TRANSFERENCIA_ENTRADA",
+          quantity: qty,
+          previousQuantity: tgtPrev,
+          newQuantity: tgtNew,
+          itemId: item.id,
+          itemName: item.name,
+          locationId: targetLocationId,
+          locationName: targetLocation.name,
+          employeeName,
+          reason: `Transfer\xEAncia de ${sourceLocation.name}`,
+          notes,
+          userId: req.user.id
+        }
+      });
+    });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message || "Erro na transfer\xEAncia." });
+  }
+});
+movementsRouter.post("/adjust", async (req, res) => {
+  try {
+    const { itemId, locationId, newQuantity, reason, notes } = req.body;
+    if (newQuantity < 0) return res.status(400).json({ message: "Quantidade inv\xE1lida." });
+    await prisma.$transaction(async (tx) => {
+      const item = await tx.epiItem.findUnique({ where: { id: itemId } });
+      if (!item) throw new Error("Item n\xE3o encontrado.");
+      const location = await tx.location.findUnique({ where: { id: locationId } });
+      const stock = await getOrCreateItemStock(tx, itemId, locationId);
+      const prev = stock.quantity;
+      const diff = Math.abs(newQuantity - prev);
+      if (diff === 0) return;
+      await tx.itemStock.update({ where: { id: stock.id }, data: { quantity: newQuantity } });
+      await tx.stockMovement.create({
+        data: {
+          type: "AJUSTE",
+          quantity: diff,
+          previousQuantity: prev,
+          newQuantity,
+          itemId: item.id,
+          itemName: item.name,
+          locationId,
+          locationName: location.name,
+          reason,
+          notes,
+          userId: req.user.id
+        }
+      });
+    });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message || "Erro no ajuste." });
+  }
+});
+movementsRouter.post("/deliver-kit", async (req, res) => {
   try {
     const { kitId, locationId, quantityOfKits, employeeName, employeeRole, employeeRegistration, notes } = req.body;
-    const kit = await prisma.epiKit.findUnique({ where: { id: kitId }, include: { components: true } });
-    const location = await prisma.location.findUnique({ where: { id: locationId } });
-    if (!kit || !location) {
-      res.status(404).json({ message: "Kit ou localidade n\xE3o encontrado." });
-      return;
-    }
-    for (const comp of kit.components) {
-      const item = await getOrCreateItemForLocation(comp.itemId, locationId);
-      if (!item || item.quantity < comp.quantity * quantityOfKits) {
-        res.status(400).json({ message: `Saldo insuficiente para: ${comp.itemName}` });
-        return;
-      }
-    }
     await prisma.$transaction(async (tx) => {
+      const kit = await tx.epiKit.findUnique({
+        where: { id: kitId },
+        include: { components: true }
+      });
+      if (!kit) throw new Error("Kit n\xE3o encontrado.");
+      const location = await tx.location.findUnique({ where: { id: locationId } });
       for (const comp of kit.components) {
-        const item = await getOrCreateItemForLocation(comp.itemId, locationId);
+        const item = await tx.epiItem.findUnique({ where: { id: comp.itemId } });
         if (!item) continue;
+        const stock = await getOrCreateItemStock(tx, comp.itemId, locationId);
         const deduct = comp.quantity * quantityOfKits;
-        const prev = item.quantity;
+        const prev = stock.quantity;
         const newQty = prev - deduct;
-        await tx.epiItem.update({ where: { id: item.id }, data: { quantity: newQty } });
+        await tx.itemStock.update({ where: { id: stock.id }, data: { quantity: newQty } });
         await tx.stockMovement.create({
           data: {
             type: "ENTREGA_KIT",
@@ -1189,8 +1019,7 @@ movementsRouter.post("/deliver-kit", requireAdminOrController, async (req, res) 
     });
     res.json({ success: true });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Erro ao entregar kit." });
+    res.status(400).json({ message: e.message || "Erro ao entregar kit." });
   }
 });
 
@@ -1345,9 +1174,9 @@ sharepointRouter.post("/sync", authenticate, requireAdmin, async (req, res) => {
     }
     const results = [];
     for (const loc of locations) {
-      const items = await prisma.epiItem.findMany({
+      const stocks = await prisma.itemStock.findMany({
         where: { locationId: loc.id },
-        orderBy: { name: "asc" }
+        include: { item: true }
       });
       const colName = loc.code.replace(/^SPO-/, "").replace(/-/g, " ");
       const payload = {
@@ -1360,11 +1189,11 @@ sharepointRouter.post("/sync", authenticate, requireAdmin, async (req, res) => {
           month: "2-digit",
           year: "numeric"
         }),
-        items: items.map((i) => ({
-          descricao: i.name,
+        items: stocks.map((s) => ({
+          descricao: s.item.name,
           // Tamanho/variante fica em `description` no modelo atual
-          tamanho: i.description || "UN",
-          quantidade: i.quantity
+          tamanho: s.item.description || "UN",
+          quantidade: s.quantity
         })),
         syncedAt: (/* @__PURE__ */ new Date()).toISOString()
       };
@@ -1480,34 +1309,49 @@ sharepointRouter.post("/pull", authenticate, requireAdmin, async (_req, res) => 
         });
         continue;
       }
-      const dbItems = await prisma.epiItem.findMany({ where: { locationId: dbLocation.id } });
+      const dbStocks = await prisma.itemStock.findMany({
+        where: { locationId: dbLocation.id },
+        include: { item: true }
+      });
       let matched = 0, updated = 0, skipped = 0, zeroed = 0;
       const notFound = [];
-      const matchedDbItemIds = /* @__PURE__ */ new Set();
+      const matchedDbStockIds = /* @__PURE__ */ new Set();
       for (const spItem of locPayload.items) {
         if (!spItem.descricao) continue;
         const spNorm = normalize(spItem.descricao);
         const spTam = normalize(spItem.tamanho || "");
-        let dbItem = dbItems.find((i) => normalize(i.name) === spNorm);
-        if (!dbItem && spTam && spTam !== "UN") {
-          dbItem = dbItems.find((i) => normalize(i.name) === `${spNorm} ${spTam}`);
+        let dbStock = dbStocks.find((s) => normalize(s.item.name) === spNorm);
+        if (!dbStock && spTam && spTam !== "UN") {
+          dbStock = dbStocks.find((s) => normalize(s.item.name) === `${spNorm} ${spTam}`);
         }
-        if (!dbItem) {
-          dbItem = dbItems.find((i) => fuzzyMatch(i.name, `${spItem.descricao} ${spItem.tamanho || ""}`));
+        if (!dbStock) {
+          dbStock = dbStocks.find((s) => fuzzyMatch(s.item.name, `${spItem.descricao} ${spItem.tamanho || ""}`));
         }
-        if (!dbItem) {
+        if (!dbStock) {
+          const allItems = await prisma.epiItem.findMany();
+          let dbItem2 = allItems.find((i) => normalize(i.name) === spNorm || normalize(i.name) === `${spNorm} ${spTam}` || fuzzyMatch(i.name, `${spItem.descricao} ${spItem.tamanho || ""}`));
+          if (dbItem2) {
+            dbStock = await prisma.itemStock.create({
+              data: { itemId: dbItem2.id, locationId: dbLocation.id, quantity: 0, minQuantity: 0 },
+              include: { item: true }
+            });
+            dbStocks.push(dbStock);
+          }
+        }
+        if (!dbStock) {
           notFound.push(`${spItem.descricao}${spItem.tamanho && spItem.tamanho !== "UN" ? ` (${spItem.tamanho})` : ""}`);
           continue;
         }
         matched++;
-        matchedDbItemIds.add(dbItem.id);
-        if (dbItem.quantity === spItem.quantidade) {
+        matchedDbStockIds.add(dbStock.id);
+        if (dbStock.quantity === spItem.quantidade) {
           skipped++;
           continue;
         }
-        const prev = dbItem.quantity;
+        const prev = dbStock.quantity;
         const next = spItem.quantidade;
-        await prisma.epiItem.update({ where: { id: dbItem.id }, data: { quantity: next } });
+        await prisma.itemStock.update({ where: { id: dbStock.id }, data: { quantity: next } });
+        const dbItem = dbStock.item;
         await prisma.stockMovement.create({
           data: {
             type: "AJUSTE",
@@ -1524,9 +1368,9 @@ sharepointRouter.post("/pull", authenticate, requireAdmin, async (_req, res) => 
         });
         updated++;
       }
-      for (const item of dbItems) {
-        if (!matchedDbItemIds.has(item.id)) {
-          await prisma.epiItem.delete({ where: { id: item.id } });
+      for (const stock of dbStocks) {
+        if (!matchedDbStockIds.has(stock.id)) {
+          await prisma.itemStock.delete({ where: { id: stock.id } });
           zeroed++;
           updated++;
         }
@@ -1628,7 +1472,10 @@ sharepointRouter.post("/ingest", async (req, res) => {
         });
         continue;
       }
-      const dbItems = await prisma.epiItem.findMany({ where: { locationId: dbLocation.id } });
+      const dbStocks = await prisma.itemStock.findMany({
+        where: { locationId: dbLocation.id },
+        include: { item: true }
+      });
       let matched = 0;
       let updated = 0;
       let skipped = 0;
@@ -1637,28 +1484,40 @@ sharepointRouter.post("/ingest", async (req, res) => {
         if (!spItem.descricao) continue;
         const spNorm = normalize(spItem.descricao);
         const spTam = normalize(spItem.tamanho || "");
-        let dbItem = dbItems.find((i) => normalize(i.name) === spNorm);
-        if (!dbItem && spTam && spTam !== "UN") {
-          dbItem = dbItems.find((i) => normalize(i.name) === `${spNorm} ${spTam}`);
+        let dbStock = dbStocks.find((s) => normalize(s.item.name) === spNorm);
+        if (!dbStock && spTam && spTam !== "UN") {
+          dbStock = dbStocks.find((s) => normalize(s.item.name) === `${spNorm} ${spTam}`);
         }
-        if (!dbItem) {
-          dbItem = dbItems.find((i) => normalize(i.name).includes(spNorm) || spNorm.includes(normalize(i.name)));
+        if (!dbStock) {
+          dbStock = dbStocks.find((s) => normalize(s.item.name).includes(spNorm) || spNorm.includes(normalize(s.item.name)));
         }
-        if (!dbItem) {
+        if (!dbStock) {
+          const allItems = await prisma.epiItem.findMany();
+          let dbItem2 = allItems.find((i) => normalize(i.name) === spNorm || normalize(i.name) === `${spNorm} ${spTam}` || normalize(i.name).includes(spNorm) || spNorm.includes(normalize(i.name)));
+          if (dbItem2) {
+            dbStock = await prisma.itemStock.create({
+              data: { itemId: dbItem2.id, locationId: dbLocation.id, quantity: 0, minQuantity: 0 },
+              include: { item: true }
+            });
+            dbStocks.push(dbStock);
+          }
+        }
+        if (!dbStock) {
           notFound.push(`${spItem.descricao}${spItem.tamanho ? ` (${spItem.tamanho})` : ""}`);
           continue;
         }
         matched++;
-        if (dbItem.quantity === spItem.quantidade) {
+        if (dbStock.quantity === spItem.quantidade) {
           skipped++;
           continue;
         }
-        const prev = dbItem.quantity;
+        const prev = dbStock.quantity;
         const next = spItem.quantidade;
-        await prisma.epiItem.update({
-          where: { id: dbItem.id },
+        await prisma.itemStock.update({
+          where: { id: dbStock.id },
           data: { quantity: next }
         });
+        const dbItem = dbStock.item;
         await prisma.stockMovement.create({
           data: {
             type: "AJUSTE",

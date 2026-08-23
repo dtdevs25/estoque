@@ -85,18 +85,30 @@ model EpiItem {
   category           String
   protectionCategory String?
   unit               String   @default("UN")
-  quantity           Int      @default(0)
-  minQuantity        Int      @default(0)
   imageUrl           String?
   description        String?
-  locationId         String
-  location           Location @relation(fields: [locationId], references: [id])
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  movements StockMovement[]
+  stocks             ItemStock[]
+  movements          StockMovement[]
 
   @@map("epi_items")
+}
+
+model ItemStock {
+  id          String   @id @default(uuid())
+  itemId      String
+  locationId  String
+  quantity    Int      @default(0)
+  minQuantity Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  item        EpiItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, locationId])
+  @@map("item_stocks")
 }
 
 model EpiKit {

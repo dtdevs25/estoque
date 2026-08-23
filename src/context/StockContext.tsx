@@ -468,46 +468,27 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const displayItems = useMemo(() => {
     if (items.length === 0) return [];
 
-    // Group items by name (case-insensitive) to form the Homologated Catalog
-    const catalogMap = new Map<string, EpiItem>();
-    for (const item of items) {
-      const key = (item.name || '').trim().toLowerCase();
-      if (!catalogMap.has(key)) {
-        catalogMap.set(key, item);
-      }
-    }
-
     // Case 1: ALL locations selected
     if (selectedLocationId === 'ALL') {
-      return Array.from(catalogMap.values()).map(template => {
-        const key = (template.name || '').trim().toLowerCase();
-        const matching = items.filter(i => (i.name || '').trim().toLowerCase() === key);
-        const totalQty = matching.reduce((sum, i) => sum + i.quantity, 0);
+      return items.map(item => {
+        const totalQty = (item.stocks || []).reduce((sum, s) => sum + s.quantity, 0);
         return {
-          ...template,
+          ...item,
           quantity: totalQty,
+          minQuantity: 0, // General min quantity makes less sense across ALL, or could be sum too. Let's use 0.
           locationId: 'ALL',
         };
       });
     }
 
     // Case 2: Specific location selected
-    return Array.from(catalogMap.values()).map(template => {
-      const key = (template.name || '').trim().toLowerCase();
-      const matchInLocation = items.find(
-        i => (i.name || '').trim().toLowerCase() === key && i.locationId === selectedLocationId
-      );
-
-      if (matchInLocation) {
-        return matchInLocation;
-      }
-
-      // Virtual item representation for this location with 0 stock
+    return items.map(item => {
+      const stock = (item.stocks || []).find(s => s.locationId === selectedLocationId);
       return {
-        ...template,
-        id: `virtual-${template.id}-${selectedLocationId}`,
+        ...item,
+        quantity: stock ? stock.quantity : 0,
+        minQuantity: stock ? stock.minQuantity : 0,
         locationId: selectedLocationId,
-        quantity: 0,
       };
     });
   }, [items, selectedLocationId]);

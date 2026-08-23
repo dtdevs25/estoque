@@ -136,12 +136,14 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
         category,
         unit,
         imageUrl: imageUrl || DEFAULT_SAMPLE_IMAGES[category],
-        quantity: Number(quantity) || 0,
-        minQuantity: Number(minQuantity) || 0,
-        locationId,
         costPrice: Number(costPrice) || 0,
         brand: brand?.trim() || '',
         description: description?.trim() || '',
+        stocks: locationId && locationId !== 'ALL' ? [{
+          locationId,
+          quantity: Number(quantity) || 0,
+          minQuantity: Number(minQuantity) || 0
+        }] : []
       };
 
       if (itemToEdit) {
@@ -268,7 +270,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
 
           {/* Location, Quantity, Min Quantity */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-[#FAF7FC] rounded-xl border border-purple-100">
-            <div>
+            <div className={locationId === 'ALL' ? 'sm:col-span-3' : ''}>
               <label className="block text-slate-700 font-bold mb-1">Almoxarifado Vinculado *</label>
               <select
                 value={locationId}
@@ -277,36 +279,40 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
                 required
               >
                 <option value="" disabled>Selecione um estoque...</option>
-                {!itemToEdit && <option value="ALL">Todos os Estoques (Geral)</option>}
+                <option value="ALL">Item Genérico (Todos os Estoques)</option>
                 {locations.map(loc => (
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <label className="block text-slate-700 font-bold mb-1">Estoque Atual *</label>
-              <input
-                type="number"
-                min="0"
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099] font-mono font-bold text-slate-900"
-                required
-              />
-            </div>
+            {locationId !== 'ALL' && (
+              <>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Estoque Atual *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099] font-mono font-bold text-slate-900"
+                    required
+                  />
+                </div>
 
-            <div>
-              <label className="block text-slate-700 font-bold mb-1">Estoque Mínimo (Alerta) *</label>
-              <input
-                type="number"
-                min="0"
-                value={minQuantity}
-                onChange={(e) => setMinQuantity(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099] font-mono font-bold text-amber-700"
-                required
-              />
-            </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Estoque Mínimo (Alerta) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={minQuantity}
+                    onChange={(e) => setMinQuantity(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099] font-mono font-bold text-amber-700"
+                    required
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Brand & Price */}

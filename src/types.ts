@@ -38,6 +38,15 @@ export interface Location {
   createdAt: string;
 }
 
+export interface ItemStock {
+  id: string;
+  itemId: string;
+  locationId: string;
+  quantity: number;
+  minQuantity: number;
+  updatedAt: string;
+}
+
 export interface EpiItem {
   id: string;
   name: string;
@@ -45,15 +54,15 @@ export interface EpiItem {
   caNumber: string; // Certificado de Aprovação (ex: CA 34567)
   caValidity?: string; // Validade do CA
   category: CategoryType;
+  protectionCategory?: string;
   unit: 'un' | 'par' | 'cj' | 'pct' | 'kit';
   imageUrl: string;
-  quantity: number;
-  minQuantity: number; // Estoque mínimo para alerta
-  locationId: string;
   costPrice?: number;
   brand?: string;
   description?: string;
   updatedAt: string;
+
+  stocks?: ItemStock[];\n  quantity?: number;\n  minQuantity?: number;\n  locationId?: string;
 }
 
 export interface StockMovement {

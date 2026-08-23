@@ -62,7 +62,7 @@ export const ItemsView: React.FC<ItemsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [stockStatusFilter, setStockStatusFilter] = useState<'ALL' | 'CRITICAL' | 'NORMAL' | 'ZERO'>('ALL');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
   const [selectedItemDetail, setSelectedItemDetail] = useState<EpiItem | null>(null);
   
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);

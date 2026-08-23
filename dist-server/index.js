@@ -1230,7 +1230,7 @@ sharepointRouter.post("/sync", authenticate, requireAdmin, async (req, res) => {
   }
 });
 function fuzzyMatch(dbName, sheetName) {
-  const clean = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[-()]/g, " ").replace(/\s+/g, " ").trim();
+  const clean = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\b(UN|PAR|PCT|CX|ROLO)\b/gi, "").replace(/[-()]/g, " ").replace(/\s+/g, " ").trim();
   const normDb = clean(dbName);
   const normSheet = clean(sheetName);
   if (normDb === normSheet) return true;
@@ -1249,7 +1249,7 @@ function fuzzyMatch(dbName, sheetName) {
     }
   }
   const ratio = matches / Math.max(wordsDb.length, wordsSheet.length);
-  return ratio >= 0.5;
+  return ratio >= 0.8;
 }
 sharepointRouter.post("/pull", authenticate, requireAdmin, async (_req, res) => {
   try {
@@ -1343,7 +1343,7 @@ sharepointRouter.post("/pull", authenticate, requireAdmin, async (_req, res) => 
                 name: newItemName.substring(0, 100),
                 description: spItem.tamanho && spItem.tamanho !== "UN" ? `Tam ${spItem.tamanho}` : null,
                 category: "Importado Planilha",
-                type: "EPI_EPC",
+                type: "EPI",
                 unit: "un",
                 status: "Ativo"
               }

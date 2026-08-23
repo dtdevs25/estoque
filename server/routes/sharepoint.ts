@@ -410,7 +410,7 @@ sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request,
                 name: newItemName.substring(0, 100),
                 description: spItem.tamanho && spItem.tamanho !== 'UN' ? `Tam ${spItem.tamanho}` : null,
                 category: 'Importado Planilha',
-                type: 'EPI_EPC',
+                type: 'EPI',
                 unit: 'un',
                 status: 'Ativo'
               }

@@ -27,16 +27,13 @@ export const KitsView: React.FC<KitsViewProps> = ({
 }) => {
   const { 
     kits, 
-    locations, 
     deleteKit,
     currentUser,
     isCurrentUserAdmin,
-    getKitAvailabilityForLocation
+    getKitAvailabilityForLocation,
+    selectedLocationId
   } = useStock();
 
-  const [activeLocId, setActiveLocId] = useState<string>(() => locations[0]?.id || '');
-  const [targetKitsSimulation, setTargetKitsSimulation] = useState<number>(10);
-  const [selectedKitForSimulation, setSelectedKitForSimulation] = useState<string>(() => kits[0]?.id || '');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const canEdit = isCurrentUserAdmin || currentUser?.role === 'CONTROLLER';
@@ -58,10 +55,7 @@ export const KitsView: React.FC<KitsViewProps> = ({
     }
   };
 
-  // Availability report for simulation
-  const simReport = selectedKitForSimulation && activeLocId 
-    ? getKitAvailabilityForLocation(selectedKitForSimulation, activeLocId) 
-    : null;
+
 
   return (
     <div className="space-y-6 pb-12">
@@ -138,7 +132,11 @@ export const KitsView: React.FC<KitsViewProps> = ({
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {(kits || []).map(kit => (
+          {(kits || []).map(kit => {
+            const avail = getKitAvailabilityForLocation(kit.id, selectedLocationId);
+            const kitsDisponiveis = avail?.maxCompleteKits || 0;
+
+            return (
             <div 
               key={kit.id}
               className="bg-white rounded-2xl border border-purple-100 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden"
@@ -158,8 +156,9 @@ export const KitsView: React.FC<KitsViewProps> = ({
                     {kit.description && <p className="text-xs text-slate-500 mt-0.5">{kit.description}</p>}
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-purple-100/70 text-[#660099] border border-purple-200 shrink-0">
-                    <Layers className="w-5 h-5" />
+                  <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-purple-50 text-[#660099] border border-purple-200 shrink-0 min-w-[80px]">
+                    <span className="text-2xl font-black">{kitsDisponiveis}</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider">Montáveis</span>
                   </div>
                 </div>
 
@@ -220,21 +219,12 @@ export const KitsView: React.FC<KitsViewProps> = ({
                       </button>
                     )}
                   </div>
-
-                  {canEdit && (
-                    <button
-                      onClick={() => onOpenDeliverKit(kit.id, locations[0]?.id || '')}
-                      className="px-4 py-2 bg-[#660099] hover:bg-[#52007a] text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Entregar Kit
-                    </button>
-                  )}
                 </div>
               )}
 
             </div>
-          ))}
+          )
+        })}
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-purple-100 shadow-xs overflow-hidden">
@@ -245,12 +235,15 @@ export const KitsView: React.FC<KitsViewProps> = ({
                   <th className="py-3.5 px-4">Código / Categoria</th>
                   <th className="py-3.5 px-4">Nome do Kit</th>
                   <th className="py-3.5 px-4">Componentes</th>
-                  <th className="py-3.5 px-4 text-center">Qtd Itens</th>
+                  <th className="py-3.5 px-4 text-center">Montáveis</th>
                   <th className="py-3.5 px-4 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
-                {(kits || []).map((kit) => (
+                {(kits || []).map((kit) => {
+                  const avail = getKitAvailabilityForLocation(kit.id, selectedLocationId);
+                  const kitsDisponiveis = avail?.maxCompleteKits || 0;
+                  return (
                   <tr key={kit.id} className="hover:bg-purple-50/30 transition-colors">
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex flex-col">
@@ -280,8 +273,12 @@ export const KitsView: React.FC<KitsViewProps> = ({
                         )}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-800">
-                      {(kit.components || []).length}
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="flex justify-center">
+                        <span className="px-3 py-1 text-sm font-bold bg-purple-100 text-[#660099] rounded-lg">
+                          {kitsDisponiveis}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
@@ -303,119 +300,18 @@ export const KitsView: React.FC<KitsViewProps> = ({
                             <Trash2 className="w-4 h-4" />
                           </button>
                         )}
-                        {canEdit && (
-                          <button
-                            onClick={() => onOpenDeliverKit(kit.id, locations[0]?.id || '')}
-                            className="ml-2 px-3 py-1.5 bg-[#660099] hover:bg-[#52007a] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Entregar
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
-                ))}
+                )
+              })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* Simulator Section */}
-      {(kits || []).length > 0 && (
-        <div className="bg-white rounded-2xl border border-purple-100 p-6 shadow-xs space-y-4">
-          <div className="flex items-center gap-3 border-b border-purple-50 pb-3">
-            <div className="p-2 rounded-lg bg-purple-50 text-[#660099]">
-              <Calculator className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-base">Simulador de Estoque por Almoxarifado</h3>
-              <p className="text-xs text-slate-500">
-                Verifique a capacidade de montagem e saldo de componentes de um Kit em um almoxarifado específico.
-              </p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs sm:text-sm">
-            <div>
-              <label className="block text-slate-600 font-bold mb-1">Kit em Análise</label>
-              <select
-                value={selectedKitForSimulation}
-                onChange={(e) => setSelectedKitForSimulation(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099]"
-              >
-                {(kits || []).map(k => (
-                  <option key={k.id} value={k.id}>{k.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-slate-600 font-bold mb-1">Almoxarifado / Unidade</label>
-              <select
-                value={activeLocId}
-                onChange={(e) => setActiveLocId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099]"
-              >
-                {(locations || []).map(l => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-slate-600 font-bold mb-1">Meta de Kits Desejada</label>
-              <input
-                type="number"
-                min="1"
-                max="5000"
-                value={targetKitsSimulation}
-                onChange={(e) => setTargetKitsSimulation(parseInt(e.target.value, 10) || 1)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#660099] font-mono font-bold"
-              />
-            </div>
-          </div>
-
-          {simReport && (
-            <div className="mt-4 pt-4 border-t border-purple-50 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-slate-600">
-                  Capacidade máxima no almoxarifado: <strong className="text-[#660099] font-mono font-bold text-sm">{simReport.maxCompleteKits || 0} kits</strong>
-                </span>
-                <span className="font-bold text-slate-500">Balanço do Almoxarifado:</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {(simReport.componentDetails || []).map((comp, i) => {
-                  const neededTotal = (comp.required || 1) * targetKitsSimulation;
-                  const deficit = Math.max(0, neededTotal - (comp.available || 0));
-                  const isSatisfied = deficit === 0;
-
-                  return (
-                    <div key={i} className={`p-3 rounded-xl border text-xs ${
-                      isSatisfied ? 'bg-purple-50/60 border-purple-200' : 'bg-rose-50/70 border-rose-200'
-                    }`}>
-                      <div className="font-bold text-slate-800 truncate">{stripSizeFromName(comp.itemName)}</div>
-                      <div className="mt-2 flex justify-between text-[11px]">
-                        <span className="text-slate-500">Saldo: {comp.available || 0}</span>
-                        <span className="text-slate-500">Necessário: {neededTotal}</span>
-                      </div>
-                      <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between">
-                        <span className="text-[10px] uppercase font-bold text-slate-500">Falta Comprar:</span>
-                        <strong className={`font-mono text-sm ${isSatisfied ? 'text-[#660099]' : 'text-rose-700 font-extrabold'}`}>
-                          {isSatisfied ? '0 (OK)' : `+${deficit} ${comp.unit || 'un'}`}
-                        </strong>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-        </div>
-      )}
 
       <ConfirmDeleteModal
         isOpen={deleteModalOpen}

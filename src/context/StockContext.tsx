@@ -380,14 +380,30 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // ── Kit Availability (computed locally) ───────────────────────────────────
 
-  const findItemForComponent = (itemId: string, itemName: string, locationId: string): EpiItem | undefined => {
-    if (!items || items.length === 0) return undefined;
-    const direct = items.find(i => i.id === itemId && (i.locationId === locationId || i.locationId === 'ALL'));
-    if (direct) return direct;
-    return items.find(
-      i => (i.locationId === locationId || i.locationId === 'ALL') &&
-           (i.name || '').trim().toLowerCase() === (itemName || '').trim().toLowerCase()
-    );
+  const findAllItemsForComponent = (itemId: string, itemName: string, locationId: string): EpiItem[] => {
+    if (!items || items.length === 0) return [];
+    
+    const searchName = (itemName || '').trim().toLowerCase();
+    
+    return items.filter(i => {
+      // Must belong to the requested location (or be a global template)
+      if (i.locationId !== locationId && i.locationId !== 'ALL') return false;
+      
+      // If it's the exact same item, always match
+      if (i.id === itemId) return true;
+      
+      // If the component's generic name is contained within this item's name
+      // This allows a component named "Calçado de Segurança" to match "Calçado de Segurança 41" and "Calçado de Segurança 42"
+      const currentName = (i.name || '').trim().toLowerCase();
+      
+      // Don't match if searchName is too short to avoid accidental broad matches, 
+      // but if it's explicitly set up as a component, we trust the name.
+      if (searchName && currentName.includes(searchName)) {
+        return true;
+      }
+      
+      return false;
+    });
   };
 
   const getKitAvailabilityForLocation = (kitId: string, locationId: string): KitAvailability | null => {
@@ -399,8 +415,11 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let limitingItem: KitLimitingItem | null = null;
 
     const componentDetails = (kit.components || []).map(comp => {
-      const item = findItemForComponent(comp.itemId, comp.itemName, locationId);
-      const available = item?.quantity || 0;
+      const matchedItems = findAllItemsForComponent(comp.itemId, comp.itemName, locationId);
+      
+      // Sum the quantities of all matched items (e.g. summing all sizes)
+      const available = matchedItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      
       const reqPerKit = comp.quantity || (comp as any).requiredQuantity || 1;
       const maxKitsForThisItem = reqPerKit > 0 ? Math.floor(available / reqPerKit) : 0;
 
@@ -408,15 +427,18 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         maxCompleteKits = maxKitsForThisItem;
       }
 
+      // Use the first matched item to grab CA/Unit if available, else fallback
+      const primaryItem = matchedItems[0];
+
       return {
         itemId: comp.itemId || '',
         itemName: comp.itemName || 'Item',
-        caNumber: item?.caNumber || 'N/A',
+        caNumber: primaryItem?.caNumber || 'Variados',
         required: reqPerKit,
         available,
         maxKitsForThisItem,
         isLimiting: false,
-        unit: comp.unit || item?.unit || 'un',
+        unit: comp.unit || primaryItem?.unit || 'un',
       };
     });
 

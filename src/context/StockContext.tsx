@@ -78,6 +78,7 @@ interface StockContextType {
   resetToDefaultData: () => void;
   exportBackupJSON: () => string;
   importBackupJSON: (jsonString: string) => boolean;
+  refreshData: () => Promise<void>;
 }
 
 const EMPTY_USER: AppUser = {
@@ -526,6 +527,7 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     addKit, updateKit, deleteKit, deliverKit,
     getKitAvailabilityForLocation, getAllKitsAvailability,
     resetToDefaultData, exportBackupJSON, importBackupJSON,
+    refreshData: loadAll,
   };
 
   return <StockContext.Provider value={value}>{children}</StockContext.Provider>;

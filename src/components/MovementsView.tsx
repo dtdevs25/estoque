@@ -40,11 +40,27 @@ export const MovementsView: React.FC = () => {
     currentUser,
     transferStock,
     adjustStock,
-    setSelectedLocationId
+    setSelectedLocationId,
+    refreshData
   } = useStock();
 
   const isViewer = currentUser?.role === 'VIEWER';
   const [activeSubTab, setActiveSubTab] = useState<'batch' | 'single' | 'history'>(isViewer ? 'history' : 'batch');
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      await sharepoint.pull();
+      await refreshData();
+      setBatchSuccessMsg('Sincronização com SharePoint concluída com sucesso!');
+    } catch (e) {
+      console.error(e);
+      setBatchErrorMsg('Erro ao sincronizar com SharePoint. Tente novamente mais tarde.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // ---- State for Batch / Daily Closing Mode ----
   
@@ -540,10 +556,19 @@ export const MovementsView: React.FC = () => {
       
       {/* Top Header */}
       <div className="bg-white rounded-2xl border border-purple-100 p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="flex items-center gap-4">
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Entregas & Movimentações
           </h1>
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
+            title="Puxar dados do SharePoint e atualizar saldos"
+          >
+            <RotateCcw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar SharePoint'}
+          </button>
         </div>
 
         {/* Sub-Tabs Switcher */}

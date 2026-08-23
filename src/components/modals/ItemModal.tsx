@@ -51,6 +51,8 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
   const [brand, setBrand] = useState('');
   const [description, setDescription] = useState('');
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     if (itemToEdit) {
       setType(itemToEdit.type || defaultType);
@@ -114,8 +116,6 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, itemToEdi
       reader.readAsDataURL(file);
     }
   };
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -401,6 +401,25 @@ sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request,
               include: { item: true }
             });
             dbStocks.push(dbStock);
+          } else {
+            // Auto-create item if it doesn't exist
+            const newItemName = `${spItem.descricao}${spItem.tamanho && spItem.tamanho !== 'UN' ? ` - Tam ${spItem.tamanho}` : ''}`;
+            dbItem = await prisma.epiItem.create({
+              data: {
+                name: newItemName.substring(0, 100),
+                description: spItem.tamanho && spItem.tamanho !== 'UN' ? `Tam ${spItem.tamanho}` : null,
+                category: 'Importado Planilha',
+                type: 'EPI_EPC',
+                unit: 'un',
+                status: 'Ativo'
+              }
+            });
+            
+            dbStock = await prisma.itemStock.create({
+              data: { itemId: dbItem.id, locationId: dbLocation.id, quantity: 0, minQuantity: 0 },
+              include: { item: true }
+            });
+            dbStocks.push(dbStock);
           }
         }
 

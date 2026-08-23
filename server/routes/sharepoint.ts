@@ -94,8 +94,10 @@ async function logSync(direction: 'PUSH' | 'PULL', summary: object) {
 sharepointRouter.get('/status', authenticate, async (_req: Request, res: Response) => {
   try {
     const paWebhookUrl = process.env.POWER_AUTOMATE_WEBHOOK_URL;
+    const paWebhookPullUrl = process.env.POWER_AUTOMATE_WEBHOOK_PULL_URL;
     const secretConfigured = !!WEBHOOK_SECRET;
     const webhookConfigured = !!paWebhookUrl;
+    const webhookPullConfigured = !!paWebhookPullUrl;
 
     // Busca todas as locations cujo code começa com "SPO-"
     const spoLocations = await prisma.location.findMany({
@@ -107,7 +109,8 @@ sharepointRouter.get('/status', authenticate, async (_req: Request, res: Respons
       integration: {
         secretConfigured,
         webhookConfigured,
-        ready: secretConfigured && webhookConfigured,
+        webhookPullConfigured,
+        ready: secretConfigured && (webhookConfigured || webhookPullConfigured),
       },
       spoLocations: spoLocations.map(l => ({
         id: l.id,
@@ -280,10 +283,10 @@ function fuzzyMatch(dbName: string, sheetName: string): boolean {
  */
 sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request, res: Response) => {
   try {
-    const paUrl = process.env.POWER_AUTOMATE_WEBHOOK_URL;
+    const paUrl = process.env.POWER_AUTOMATE_WEBHOOK_PULL_URL;
     if (!paUrl) {
       res.status(500).json({
-        message: 'POWER_AUTOMATE_WEBHOOK_URL não configurada. Adicione ao .env do CapRover.',
+        message: 'POWER_AUTOMATE_WEBHOOK_PULL_URL não configurada. Adicione ao .env do CapRover.',
       });
       return;
     }

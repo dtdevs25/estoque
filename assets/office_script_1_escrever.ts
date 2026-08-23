@@ -73,9 +73,23 @@ function main(
   let updatedCount = 0;
   const notFound: string[] = [];
 
+  // Função para limpar e normalizar o nome para comparação (Fuzzy Match)
+  const clean = (s: string) => {
+    return s
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+      .replace(/[-()]/g, " ") // Troca parênteses e traços por espaço
+      .replace(/\bUN\b/gi, "") // Remove a palavra UN
+      .replace(/\s+/g, " ") // Remove espaços duplos
+      .trim()
+      .toUpperCase();
+  };
+
   for (const item of items) {
-    const itemDescNorm = String(item.descricao ?? "").trim().toUpperCase();
-    const itemTamNorm = String(item.tamanho ?? "").trim().toUpperCase();
+    const itemDesc = String(item.descricao ?? "").trim();
+    const itemTam = String(item.tamanho ?? "").trim();
+    
+    // Combina o que veio do banco e limpa
+    const itemCombined = clean(`${itemDesc} ${itemTam}`);
     let found = false;
 
     for (let rowIdx = DATA_START_ROW - 1; rowIdx < allValues.length; rowIdx++) {
@@ -85,10 +99,14 @@ function main(
       const numCell = row[0];
       if (typeof numCell === "string" && isNaN(Number(numCell)) && numCell !== "") continue;
 
-      const rowDescNorm = String(row[COL_DESCRICAO - 1] ?? "").trim().toUpperCase();
-      const rowTamNorm = String(row[COL_TAMANHO - 1] ?? "").trim().toUpperCase();
+      const rowDesc = String(row[COL_DESCRICAO - 1] ?? "").trim();
+      const rowTam = String(row[COL_TAMANHO - 1] ?? "").trim();
 
-      if (rowDescNorm === itemDescNorm && rowTamNorm === itemTamNorm) {
+      // Combina o que está na planilha e limpa
+      const rowCombined = clean(`${rowDesc} ${rowTam}`);
+
+      // Compara as duas strings limpas
+      if (itemCombined === rowCombined || itemCombined.includes(rowCombined) || rowCombined.includes(itemCombined)) {
         sheet.getCell(rowIdx, colIndex - 1).setValue(item.quantidade);
         updatedCount++;
         found = true;

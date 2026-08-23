@@ -38,6 +38,7 @@ interface SyncStatus {
   integration: {
     secretConfigured: boolean;
     webhookConfigured: boolean;
+    webhookPullConfigured: boolean;
     ready: boolean;
   };
   spoLocations: SpoLocation[];
@@ -209,15 +210,19 @@ export const SharePointSyncPanel: React.FC = () => {
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status da Configuração</p>
             <ConfigItem
               ok={integration.secretConfigured}
-              label="SHAREPOINT_WEBHOOK_SECRET configurado no .env"
+              label="SHAREPOINT_WEBHOOK_SECRET configurado"
             />
             <ConfigItem
               ok={integration.webhookConfigured}
-              label="POWER_AUTOMATE_WEBHOOK_URL configurado no .env"
+              label="POWER_AUTOMATE_WEBHOOK_URL (PUSH) configurado"
+            />
+            <ConfigItem
+              ok={integration.webhookPullConfigured}
+              label="POWER_AUTOMATE_WEBHOOK_PULL_URL (PULL) configurado"
             />
             <ConfigItem
               ok={spoLocations.length > 0}
-              label={`Locations SPO cadastradas (code = "SPO-*"): ${spoLocations.length} encontrada(s)`}
+              label={`Locations SPO cadastradas: ${spoLocations.length} encontrada(s)`}
             />
           </div>
 
@@ -285,9 +290,9 @@ export const SharePointSyncPanel: React.FC = () => {
             {/* PULL: SharePoint → App */}
             <button
               onClick={handlePull}
-              disabled={pulling || syncing || !integration.ready || spoLocations.length === 0}
+              disabled={pulling || syncing || !integration.webhookPullConfigured || spoLocations.length === 0}
               className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm transition-all border-2 ${
-                integration.ready && spoLocations.length > 0 && !pulling && !syncing
+                integration.webhookPullConfigured && spoLocations.length > 0 && !pulling && !syncing
                   ? 'border-emerald-500 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-[0.98] cursor-pointer'
                   : 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
               }`}
@@ -302,9 +307,9 @@ export const SharePointSyncPanel: React.FC = () => {
             {/* PUSH: App → SharePoint */}
             <button
               onClick={handleSync}
-              disabled={syncing || pulling || !integration.ready || spoLocations.length === 0}
+              disabled={syncing || pulling || !integration.webhookConfigured || spoLocations.length === 0}
               className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm transition-all ${
-                integration.ready && spoLocations.length > 0 && !syncing && !pulling
+                integration.webhookConfigured && spoLocations.length > 0 && !syncing && !pulling
                   ? 'bg-gradient-to-r from-purple-700 to-[#660099] hover:from-purple-800 hover:to-purple-900 text-white shadow-sm shadow-purple-900/30 active:scale-[0.98] cursor-pointer'
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed'
               }`}

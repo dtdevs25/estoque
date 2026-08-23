@@ -1273,6 +1273,423 @@ uploadRouter.post("/user-photo", upload.single("file"), async (req, res) => {
   }
 });
 
+// server/routes/sharepoint.ts
+import { Router as Router8 } from "express";
+var sharepointRouter = Router8();
+var WEBHOOK_SECRET = process.env.SHAREPOINT_WEBHOOK_SECRET;
+function verifySecret(req, res) {
+  if (!WEBHOOK_SECRET) {
+    res.status(500).json({ message: "SHAREPOINT_WEBHOOK_SECRET n\xE3o configurado no servidor." });
+    return false;
+  }
+  const auth = req.headers["authorization"];
+  if (auth !== `Bearer ${WEBHOOK_SECRET}`) {
+    res.status(401).json({ message: "N\xE3o autorizado. Token inv\xE1lido ou ausente." });
+    return false;
+  }
+  return true;
+}
+function normalize(text) {
+  return text.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ");
+}
+async function logSync(direction, summary) {
+  console.log(`[SharePoint ${direction}]`, JSON.stringify(summary));
+}
+sharepointRouter.get("/status", authenticate, async (_req, res) => {
+  try {
+    const paWebhookUrl = process.env.POWER_AUTOMATE_WEBHOOK_URL;
+    const paWebhookPullUrl = process.env.POWER_AUTOMATE_WEBHOOK_PULL_URL;
+    const secretConfigured = !!WEBHOOK_SECRET;
+    const webhookConfigured = !!paWebhookUrl;
+    const webhookPullConfigured = !!paWebhookPullUrl;
+    const spoLocations = await prisma.location.findMany({
+      where: { code: { startsWith: "SPO-" } },
+      orderBy: { name: "asc" }
+    });
+    res.json({
+      integration: {
+        secretConfigured,
+        webhookConfigured,
+        webhookPullConfigured,
+        ready: secretConfigured && (webhookConfigured || webhookPullConfigured)
+      },
+      spoLocations: spoLocations.map((l) => ({
+        id: l.id,
+        name: l.name,
+        code: l.code,
+        responsibleName: l.responsibleName
+      }))
+    });
+  } catch (e) {
+    console.error("[sharepoint/status]", e);
+    res.status(500).json({ message: "Erro ao verificar status." });
+  }
+});
+sharepointRouter.post("/sync", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const paWebhookUrl = process.env.POWER_AUTOMATE_WEBHOOK_URL;
+    if (!paWebhookUrl) {
+      res.status(500).json({
+        message: "POWER_AUTOMATE_WEBHOOK_URL n\xE3o configurada. Adicione ao .env."
+      });
+      return;
+    }
+    const { locationCodes } = req.body;
+    const whereClause = locationCodes?.length ? { code: { in: locationCodes } } : { code: { startsWith: "SPO-" } };
+    const locations = await prisma.location.findMany({ where: whereClause });
+    if (!locations.length) {
+      res.status(404).json({
+        message: 'Nenhuma location SPO encontrada. Verifique os codes (devem come\xE7ar com "SPO-").'
+      });
+      return;
+    }
+    const results = [];
+    for (const loc of locations) {
+      const items = await prisma.epiItem.findMany({
+        where: { locationId: loc.id },
+        orderBy: { name: "asc" }
+      });
+      const colName = loc.code.replace(/^SPO-/, "").replace(/-/g, " ");
+      const payload = {
+        sheet: "ESTOQUE - SPO",
+        // Nome da coluna na planilha — o Office Script usará para localizar a coluna
+        location: colName,
+        // Data da última contagem no app (para escrever na linha 5)
+        lastInventoryDate: (/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric"
+        }),
+        items: items.map((i) => ({
+          descricao: i.name,
+          // Tamanho/variante fica em `description` no modelo atual
+          tamanho: i.description || "UN",
+          quantidade: i.quantity
+        })),
+        syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      try {
+        const paRes = await fetch(paWebhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(3e4)
+          // 30s timeout
+        });
+        const paText = await paRes.text();
+        console.log(`[sharepoint/sync] Resposta do PA para ${loc.name}:`, paText);
+        let paBody = null;
+        try {
+          paBody = JSON.parse(paText);
+        } catch (e) {
+        }
+        results.push({ location: loc.name, sent: items.length, paStatus: paRes.status, paResponse: paBody });
+      } catch (fetchErr) {
+        console.error(`[sharepoint/sync] Erro enviando ${loc.name}:`, fetchErr);
+        results.push({ location: loc.name, sent: 0, paStatus: -1 });
+      }
+    }
+    await logSync("PUSH", { locations: results });
+    res.json({
+      success: true,
+      syncedLocations: results.length,
+      results
+    });
+  } catch (e) {
+    console.error("[sharepoint/sync]", e);
+    res.status(500).json({ message: "Erro ao sincronizar com SharePoint." });
+  }
+});
+function fuzzyMatch(dbName, sheetName) {
+  const clean = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[-()]/g, " ").replace(/\s+/g, " ").trim();
+  const normDb = clean(dbName);
+  const normSheet = clean(sheetName);
+  if (normDb === normSheet) return true;
+  if (normDb.includes(normSheet) || normSheet.includes(normDb)) return true;
+  const numDb = normDb.match(/\d+/g)?.join(",") || "";
+  const numSheet = normSheet.match(/\d+/g)?.join(",") || "";
+  if (numDb && numSheet && numDb !== numSheet) {
+    return false;
+  }
+  const wordsDb = normDb.split(" ").filter((w) => w.length > 2 || /\d/.test(w));
+  const wordsSheet = normSheet.split(" ").filter((w) => w.length > 2 || /\d/.test(w));
+  let matches = 0;
+  for (const w of wordsDb) {
+    if (wordsSheet.some((ws) => ws === w || ws.startsWith(w) || w.startsWith(ws))) {
+      matches++;
+    }
+  }
+  const ratio = matches / Math.max(wordsDb.length, wordsSheet.length);
+  return ratio >= 0.5;
+}
+sharepointRouter.post("/pull", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const paUrl = process.env.POWER_AUTOMATE_WEBHOOK_PULL_URL;
+    if (!paUrl) {
+      res.status(500).json({
+        message: "POWER_AUTOMATE_WEBHOOK_PULL_URL n\xE3o configurada. Adicione ao .env do CapRover."
+      });
+      return;
+    }
+    let paData;
+    try {
+      const paRes = await fetch(paUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trigger: "pull", requestedAt: (/* @__PURE__ */ new Date()).toISOString() }),
+        signal: AbortSignal.timeout(6e4)
+        // 60s — scripts podem demorar
+      });
+      if (!paRes.ok) {
+        const errText = await paRes.text().catch(() => `HTTP ${paRes.status}`);
+        res.status(502).json({
+          message: `Power Automate retornou erro ${paRes.status}: ${errText}`
+        });
+        return;
+      }
+      paData = await paRes.json();
+    } catch (fetchErr) {
+      const isTimeout = fetchErr?.name === "TimeoutError" || fetchErr?.name === "AbortError";
+      res.status(502).json({
+        message: isTimeout ? "Timeout ao aguardar resposta do Power Automate (>60s). Tente novamente." : `Erro de rede ao chamar Power Automate: ${fetchErr?.message}`
+      });
+      return;
+    }
+    const payload = paData?.locations ? paData : paData?.result?.locations ? paData.result : null;
+    if (!payload?.locations || !Array.isArray(payload.locations)) {
+      console.error("[sharepoint/pull] Payload inesperado do PA:", JSON.stringify(paData).slice(0, 500));
+      res.status(502).json({
+        message: "Resposta do Power Automate n\xE3o tem o formato esperado. Verifique o Office Script.",
+        received: paData
+      });
+      return;
+    }
+    const summary = [];
+    const syncedAt = payload.syncedAt ?? (/* @__PURE__ */ new Date()).toISOString();
+    for (const locPayload of payload.locations) {
+      const derivedCode = `SPO-${locPayload.location.replace(/\s+/g, "-").toUpperCase()}`;
+      const codeToSearch = locPayload.locationCode || derivedCode;
+      const dbLocation = await prisma.location.findUnique({ where: { code: codeToSearch } });
+      if (!dbLocation) {
+        summary.push({
+          location: locPayload.location,
+          matched: 0,
+          updated: 0,
+          skipped: 0,
+          notFound: [`Location com code "${codeToSearch}" n\xE3o cadastrada no app.`]
+        });
+        continue;
+      }
+      const dbItems = await prisma.epiItem.findMany({ where: { locationId: dbLocation.id } });
+      let matched = 0, updated = 0, skipped = 0, zeroed = 0;
+      const notFound = [];
+      const matchedDbItemIds = /* @__PURE__ */ new Set();
+      for (const spItem of locPayload.items) {
+        if (!spItem.descricao) continue;
+        const spNorm = normalize(spItem.descricao);
+        const spTam = normalize(spItem.tamanho || "");
+        let dbItem = dbItems.find((i) => normalize(i.name) === spNorm);
+        if (!dbItem && spTam && spTam !== "UN") {
+          dbItem = dbItems.find((i) => normalize(i.name) === `${spNorm} ${spTam}`);
+        }
+        if (!dbItem) {
+          dbItem = dbItems.find((i) => fuzzyMatch(i.name, `${spItem.descricao} ${spItem.tamanho || ""}`));
+        }
+        if (!dbItem) {
+          notFound.push(`${spItem.descricao}${spItem.tamanho && spItem.tamanho !== "UN" ? ` (${spItem.tamanho})` : ""}`);
+          continue;
+        }
+        matched++;
+        matchedDbItemIds.add(dbItem.id);
+        if (dbItem.quantity === spItem.quantidade) {
+          skipped++;
+          continue;
+        }
+        const prev = dbItem.quantity;
+        const next = spItem.quantidade;
+        await prisma.epiItem.update({ where: { id: dbItem.id }, data: { quantity: next } });
+        await prisma.stockMovement.create({
+          data: {
+            type: "AJUSTE",
+            quantity: Math.abs(next - prev),
+            previousQuantity: prev,
+            newQuantity: next,
+            itemId: dbItem.id,
+            itemName: dbItem.name,
+            locationId: dbLocation.id,
+            locationName: dbLocation.name,
+            reason: `Sincroniza\xE7\xE3o autom\xE1tica via SharePoint \u2014 ${syncedAt}`,
+            notes: `Fonte: Planilha ESTOQUE - SPO | Coluna: ${locPayload.location}`
+          }
+        });
+        updated++;
+      }
+      for (const item of dbItems) {
+        if (!matchedDbItemIds.has(item.id)) {
+          await prisma.epiItem.delete({ where: { id: item.id } });
+          zeroed++;
+          updated++;
+        }
+      }
+      summary.push({ location: locPayload.location, matched, updated, skipped, notFound });
+    }
+    await logSync("PULL", { syncedAt, summary });
+    res.json({
+      success: true,
+      totalUpdated: summary.reduce((a, s) => a + s.updated, 0),
+      totalMatched: summary.reduce((a, s) => a + s.matched, 0),
+      summary
+    });
+  } catch (e) {
+    console.error("[sharepoint/pull]", e);
+    res.status(500).json({ message: "Erro interno ao processar pull do SharePoint." });
+  }
+});
+sharepointRouter.post("/ingest", async (req, res) => {
+  if (!verifySecret(req, res)) return;
+  try {
+    const { locations, syncedAt } = req.body;
+    if (!Array.isArray(locations) || !locations.length) {
+      res.status(400).json({ message: 'Payload inv\xE1lido: "locations" deve ser um array n\xE3o vazio.' });
+      return;
+    }
+    const summary = [];
+    for (const locPayload of locations) {
+      const derivedCode = `SPO-${locPayload.location.replace(/\s+/g, "-").toUpperCase()}`;
+      const codeToSearch = locPayload.locationCode || derivedCode;
+      const dbLocation = await prisma.location.findUnique({ where: { code: codeToSearch } });
+      if (!dbLocation) {
+        summary.push({ location: locPayload.location, matched: 0, updated: 0, skipped: 0, notFound: [`"${codeToSearch}" n\xE3o encontrada`] });
+        continue;
+      }
+      const dbItems = await prisma.epiItem.findMany({ where: { locationId: dbLocation.id } });
+      let matched = 0, updated = 0, skipped = 0;
+      const notFound = [];
+      for (const spItem of locPayload.items) {
+        if (!spItem.descricao) continue;
+        const spNorm = normalize(spItem.descricao);
+        let dbItem = dbItems.find((i) => normalize(i.name) === spNorm) ?? dbItems.find((i) => normalize(i.name).includes(spNorm) || spNorm.includes(normalize(i.name)));
+        if (!dbItem) {
+          notFound.push(spItem.descricao);
+          continue;
+        }
+        matched++;
+        if (dbItem.quantity === spItem.quantidade) {
+          skipped++;
+          continue;
+        }
+        const prev = dbItem.quantity;
+        await prisma.epiItem.update({ where: { id: dbItem.id }, data: { quantity: spItem.quantidade } });
+        await prisma.stockMovement.create({
+          data: {
+            type: "AJUSTE",
+            quantity: Math.abs(spItem.quantidade - prev),
+            previousQuantity: prev,
+            newQuantity: spItem.quantidade,
+            itemId: dbItem.id,
+            itemName: dbItem.name,
+            locationId: dbLocation.id,
+            locationName: dbLocation.name,
+            reason: `Sincroniza\xE7\xE3o SharePoint (ingest) \u2014 ${syncedAt ?? (/* @__PURE__ */ new Date()).toISOString()}`,
+            notes: `Planilha: ESTOQUE - SPO | Coluna: ${locPayload.location}`
+          }
+        });
+        updated++;
+      }
+      summary.push({ location: locPayload.location, matched, updated, skipped, notFound });
+    }
+    await logSync("PULL", { syncedAt, summary });
+    res.json({ success: true, totalUpdated: summary.reduce((a, s) => a + s.updated, 0), summary });
+  } catch (e) {
+    console.error("[sharepoint/ingest]", e);
+    res.status(500).json({ message: "Erro ao processar ingest do SharePoint." });
+  }
+});
+sharepointRouter.post("/ingest", async (req, res) => {
+  if (!verifySecret(req, res)) return;
+  try {
+    const { locations, syncedAt } = req.body;
+    if (!Array.isArray(locations) || !locations.length) {
+      res.status(400).json({ message: 'Payload inv\xE1lido: "locations" deve ser um array n\xE3o vazio.' });
+      return;
+    }
+    const summary = [];
+    for (const locPayload of locations) {
+      const derivedCode = `SPO-${locPayload.location.replace(/\s+/g, "-").toUpperCase()}`;
+      const codeToSearch = locPayload.locationCode || derivedCode;
+      const dbLocation = await prisma.location.findUnique({ where: { code: codeToSearch } });
+      if (!dbLocation) {
+        summary.push({
+          location: locPayload.location,
+          matched: 0,
+          updated: 0,
+          skipped: 0,
+          notFound: [`Location com code "${codeToSearch}" n\xE3o encontrada no banco.`]
+        });
+        continue;
+      }
+      const dbItems = await prisma.epiItem.findMany({ where: { locationId: dbLocation.id } });
+      let matched = 0;
+      let updated = 0;
+      let skipped = 0;
+      const notFound = [];
+      for (const spItem of locPayload.items) {
+        if (!spItem.descricao) continue;
+        const spNorm = normalize(spItem.descricao);
+        const spTam = normalize(spItem.tamanho || "");
+        let dbItem = dbItems.find((i) => normalize(i.name) === spNorm);
+        if (!dbItem && spTam && spTam !== "UN") {
+          dbItem = dbItems.find((i) => normalize(i.name) === `${spNorm} ${spTam}`);
+        }
+        if (!dbItem) {
+          dbItem = dbItems.find((i) => normalize(i.name).includes(spNorm) || spNorm.includes(normalize(i.name)));
+        }
+        if (!dbItem) {
+          notFound.push(`${spItem.descricao}${spItem.tamanho ? ` (${spItem.tamanho})` : ""}`);
+          continue;
+        }
+        matched++;
+        if (dbItem.quantity === spItem.quantidade) {
+          skipped++;
+          continue;
+        }
+        const prev = dbItem.quantity;
+        const next = spItem.quantidade;
+        await prisma.epiItem.update({
+          where: { id: dbItem.id },
+          data: { quantity: next }
+        });
+        await prisma.stockMovement.create({
+          data: {
+            type: "AJUSTE",
+            quantity: Math.abs(next - prev),
+            previousQuantity: prev,
+            newQuantity: next,
+            itemId: dbItem.id,
+            itemName: dbItem.name,
+            locationId: dbLocation.id,
+            locationName: dbLocation.name,
+            reason: `Sincroniza\xE7\xE3o autom\xE1tica via SharePoint \u2014 ${syncedAt ?? (/* @__PURE__ */ new Date()).toISOString()}`,
+            notes: `Fonte: Planilha ESTOQUE - SPO | Coluna: ${locPayload.location}`
+          }
+        });
+        updated++;
+      }
+      summary.push({ location: locPayload.location, matched, updated, skipped, notFound });
+    }
+    await logSync("PULL", { syncedAt, summary });
+    const totalUpdated = summary.reduce((a, s) => a + s.updated, 0);
+    res.json({
+      success: true,
+      totalUpdated,
+      summary
+    });
+  } catch (e) {
+    console.error("[sharepoint/ingest]", e);
+    res.status(500).json({ message: "Erro ao processar dados do SharePoint." });
+  }
+});
+
 // server/index.ts
 var REQUIRED_ENV = ["DATABASE_URL", "JWT_SECRET", "NEXTAUTH_URL"];
 for (const key of REQUIRED_ENV) {
@@ -1332,6 +1749,7 @@ app.use("/api/items", itemsRouter);
 app.use("/api/kits", kitsRouter);
 app.use("/api/movements", movementsRouter);
 app.use("/api/upload", uploadRouter);
+app.use("/api/sharepoint", sharepointRouter);
 app.get(
   "/api/health",
   (_req, res) => res.json({ status: "ok", ts: (/* @__PURE__ */ new Date()).toISOString() })

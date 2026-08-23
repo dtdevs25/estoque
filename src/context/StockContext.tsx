@@ -12,9 +12,11 @@ export const stripSizeFromName = (name: string): string => {
     // Remove "Tam 41", "Tamanho 42", "N 43", " 44", "41/42"
     .replace(/\b(tam|tamanho|n|nº|nr|numero|#)?\s*\d{2}(?:\/\d{2})?\b/gi, '')
     // Remove sizes P, M, G, GG, XG, EG
-    .replace(/\b(?:P|M|G|GG|XG|EG)\b/g, '')
-    // Remove trailing dashes and spaces
-    .replace(/\s*-\s*$/, '')
+    .replace(/\b(?:P|M|G|GG|XG|EG)\b/gi, '')
+    // Remove units like (UN), (PAR), PCT, etc
+    .replace(/\b(UN|PAR|PCT|CX|ROLO)\b/gi, '')
+    // Remove parentheses and dashes
+    .replace(/[-()]/g, ' ')
     // Collapse multiple spaces
     .replace(/\s{2,}/g, ' ')
     .trim();

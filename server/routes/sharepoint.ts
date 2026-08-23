@@ -241,6 +241,7 @@ function fuzzyMatch(dbName: string, sheetName: string): boolean {
   const clean = (s: string) =>
     s.normalize('NFD').replace(/[\u0300-\u036f]/g, "") // remove acentos
       .toUpperCase()
+      .replace(/\b(UN|PAR|PCT|CX|ROLO)\b/gi, '')
       .replace(/[-()]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -269,9 +270,9 @@ function fuzzyMatch(dbName: string, sheetName: string): boolean {
     }
   }
 
-  // Verifica se pelo menos 50% das palavras coincidem
+  // Verifica se pelo menos 80% das palavras coincidem
   const ratio = matches / Math.max(wordsDb.length, wordsSheet.length);
-  return ratio >= 0.5;
+  return ratio >= 0.8;
 }
 
 /**

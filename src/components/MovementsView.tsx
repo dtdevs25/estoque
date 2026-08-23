@@ -19,6 +19,7 @@ import {
   PackageCheck
 } from 'lucide-react';
 import { useStock } from '../context/StockContext';
+import { sharepoint } from '../services/api';
 import { MovementType, BatchMovementEntry } from '../types';
 
 interface BatchEntryItem {
@@ -303,9 +304,23 @@ export const MovementsView: React.FC = () => {
     });
 
     if (res.success) {
-      setBatchSuccessMsg(`Sucesso! Foram registradas ${res.count} movimentações/ajustes consolidados de EPIs no almoxarifado.`);
+      setBatchSuccessMsg(`Sucesso! Foram registradas ${res.count} movimentações. Sincronizando com SharePoint...`);
       setBatchEntries({});
-      setTimeout(() => setBatchSuccessMsg(null), 6000);
+      
+      // Auto-trigger SharePoint sync in the background
+      try {
+        const locationCodes = batchLocationId === 'ALL' 
+          ? locations.filter(l => l.code.startsWith('SPO-')).map(l => l.code)
+          : [locations.find(l => l.id === batchLocationId)?.code].filter(Boolean) as string[];
+        
+        await sharepoint.push(locationCodes.length ? locationCodes : undefined);
+        setBatchSuccessMsg(`Sucesso! Movimentações registradas e planilha SharePoint atualizada com os novos saldos.`);
+      } catch (err) {
+        console.error('Erro na sincronização automática:', err);
+        setBatchSuccessMsg(`Sucesso! Movimentações registradas. (Aviso: A planilha SharePoint será atualizada automaticamente na próxima janela programada).`);
+      }
+
+      setTimeout(() => setBatchSuccessMsg(null), 8000);
     } else {
       setBatchErrorMsg(res.error || 'Erro ao processar lote.');
     }

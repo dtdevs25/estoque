@@ -159,6 +159,11 @@ export const KitsView: React.FC<KitsViewProps> = ({
                   <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-purple-50 text-[#660099] border border-purple-200 shrink-0 min-w-[80px]">
                     <span className="text-2xl font-black">{kitsDisponiveis}</span>
                     <span className="text-[9px] font-bold uppercase tracking-wider">Montáveis</span>
+                    {avail?.limitingItem && (
+                      <span className="text-[10px] text-red-500 font-bold mt-1 max-w-[100px] text-center leading-tight">
+                        Gargalo: {stripSizeFromName(avail.limitingItem.itemName)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -274,10 +279,15 @@ export const KitsView: React.FC<KitsViewProps> = ({
                       </div>
                     </td>
                     <td className="py-3.5 px-4 text-center">
-                      <div className="flex justify-center">
+                      <div className="flex flex-col items-center justify-center">
                         <span className="px-3 py-1 text-sm font-bold bg-purple-100 text-[#660099] rounded-lg">
                           {kitsDisponiveis}
                         </span>
+                        {avail?.limitingItem && (
+                          <span className="text-[10px] text-red-500 font-bold mt-1 max-w-[100px] text-center leading-tight">
+                            Gargalo: {stripSizeFromName(avail.limitingItem.itemName)}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">

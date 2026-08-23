@@ -48,7 +48,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [locationToDelete, setLocationToDelete] = useState<Location | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
 
   const handleDelete = (location: Location) => {
     if (!canDelete) {

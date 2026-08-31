@@ -18,6 +18,7 @@ import { TransferModal } from './components/modals/TransferModal';
 import { KitDeliveryModal } from './components/modals/KitDeliveryModal';
 import { UserModal } from './components/modals/UserModal';
 import { LoginView } from './components/LoginView';
+import { ResetPasswordView } from './components/ResetPasswordView';
 import { EpiItem, EpiKit, Location, AppUser, TabType } from './types';
 
 function MainAppContent() {
@@ -262,6 +263,10 @@ function MainAppContent() {
 
 function RootApp() {
   const { isAuthenticated } = useStock();
+
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPasswordView />;
+  }
 
   if (!isAuthenticated) {
     return <LoginView />;

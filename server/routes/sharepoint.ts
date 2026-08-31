@@ -12,7 +12,7 @@
 
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requireAdmin, requireAdminOrController } from '../middleware/auth.js';
 
 export const sharepointRouter = Router();
 
@@ -137,7 +137,7 @@ sharepointRouter.get('/status', authenticate, async (_req: Request, res: Respons
  *
  * Requer: autenticação JWT + role ADMIN ou CONTROLLER
  */
-sharepointRouter.post('/sync', authenticate, requireAdmin, async (req: Request, res: Response) => {
+sharepointRouter.post('/sync', authenticate, requireAdminOrController, async (req: Request, res: Response) => {
   try {
     const paWebhookUrl = process.env.POWER_AUTOMATE_WEBHOOK_URL;
     if (!paWebhookUrl) {
@@ -282,7 +282,7 @@ function fuzzyMatch(dbName: string, sheetName: string): boolean {
  *
  * Requer: autenticação JWT + role ADMIN
  */
-sharepointRouter.post('/pull', authenticate, requireAdmin, async (_req: Request, res: Response) => {
+sharepointRouter.post('/pull', authenticate, requireAdminOrController, async (_req: Request, res: Response) => {
   try {
     const paUrl = process.env.POWER_AUTOMATE_WEBHOOK_PULL_URL;
     if (!paUrl) {

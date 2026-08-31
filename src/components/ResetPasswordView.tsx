@@ -66,7 +66,7 @@ export const ResetPasswordView: React.FC = () => {
       <motion.div animate={{ y: [0, 35, 0], x: [0, -25, 0], scale: [1, 1.2, 1], opacity: [0.25, 0.45, 0.25] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }} className="absolute bottom-10 right-12 w-[22rem] sm:w-[30rem] h-[22rem] sm:h-[30rem] bg-fuchsia-600/25 rounded-full blur-[120px] pointer-events-none" />
       
       {VIVO_FLOATING_LOGOS.map((item) => (
-        <motion.img key={item.id} src={logoVivo} alt="" style={item.style} animate={{ y: item.y, x: item.x, rotate: item.rotate }} transition={{ duration: item.duration, repeat: Infinity, ease: 'easeInOut' }} className={\`absolute \${item.size} \${item.opacity} brightness-0 invert pointer-events-none object-contain\`} />
+        <motion.img key={item.id} src={logoVivo} alt="" style={item.style} animate={{ y: item.y, x: item.x, rotate: item.rotate }} transition={{ duration: item.duration, repeat: Infinity, ease: 'easeInOut' }} className={`absolute ${item.size} ${item.opacity} brightness-0 invert pointer-events-none object-contain`} />
       ))}
 
       <motion.div initial={{ opacity: 0, y: 20, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease: 'easeOut' }} className="w-full max-w-sm relative z-10">

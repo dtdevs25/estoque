@@ -334,10 +334,7 @@ export const MovementsView: React.FC = () => {
   // ---- State for Kit / Por Kit Mode ----
   const [kitSelectedId, setKitSelectedId] = useState<string>('');
   const [kitQuantity, setKitQuantity] = useState<number>(1);
-  const [kitReason, setKitReason] = useState<string>('Entrega de Kit (NR-6)');
-  const [kitEmployeeName, setKitEmployeeName] = useState<string>('');
-  const [kitEmployeeRole, setKitEmployeeRole] = useState<string>('');
-  const [kitEmployeeReg, setKitEmployeeReg] = useState<string>('');
+  const [kitReason, setKitReason] = useState<string>('Entrega de Kit');
   const [kitNotes, setKitNotes] = useState<string>('');
   const [kitSuccessMsg, setKitSuccessMsg] = useState<string | null>(null);
   const [kitErrorMsg, setKitErrorMsg] = useState<string | null>(null);
@@ -419,9 +416,6 @@ export const MovementsView: React.FC = () => {
       locationId: selectedLocationId,
       entries: batchEntries,
       reason: kitReason,
-      employeeName: kitEmployeeName,
-      employeeRole: kitEmployeeRole,
-      employeeRegistration: kitEmployeeReg,
       notes: kitNotes,
       isDailyClosing: false
     });
@@ -1041,104 +1035,112 @@ export const MovementsView: React.FC = () => {
               <div className="border border-purple-100 rounded-2xl overflow-hidden bg-slate-50/50">
                 <div className="bg-purple-50/50 px-4 py-3 border-b border-purple-100 flex items-center justify-between">
                   <span className="font-bold text-[#660099]">Itens do Kit: {selectedKit.name}</span>
-                  <span className="text-xs text-slate-500 font-medium">Você pode ajustar as quantidades abaixo, se necessário.</span>
+                  <span className="text-xs text-slate-500 font-medium">Você pode ajustar as quantidades e tamanhos abaixo.</span>
                 </div>
                 
-                <div className="p-4 space-y-4">
-                  {selectedKit.components.length === 0 ? (
-                    <p className="text-slate-500 text-center py-4">Este kit não possui componentes configurados.</p>
-                  ) : (
-                    selectedKit.components.map((comp, idx) => {
-                      const entry = kitEntries[idx] || { selectedItemId: '', quantity: 0 };
-                      const availableItems = findAllItemsForComponent(comp.itemId, comp.itemName, selectedLocationId);
-                      
-                      return (
-                        <div key={idx} className="flex flex-col sm:flex-row items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
-                          
-                          <div className="flex-1 w-full">
-                            <span className="block text-xs font-bold text-slate-600 mb-1">Componente do Kit</span>
-                            <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 font-medium truncate">
-                              {comp.itemName} (Padrão: {comp.requiredQuantity} {comp.unit})
-                            </div>
-                          </div>
+                {selectedKit.components.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs">
+                    Este kit não possui componentes configurados.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-white border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px] sm:text-[11px]">
+                          <th className="py-2 px-2 w-10 text-center">Foto</th>
+                          <th className="py-2 px-2 hidden sm:table-cell">Componente</th>
+                          <th className="py-2 px-2">EPI Específico (Escolha)</th>
+                          <th className="py-2 px-2 text-center">Saldo</th>
+                          <th className="py-2 px-2 w-28 text-center bg-purple-50/70 text-[#660099]">QTD</th>
+                          <th className="py-2 px-2 text-center hidden sm:table-cell">Novo Saldo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {selectedKit.components.map((comp, idx) => {
+                          const entry = kitEntries[idx] || { selectedItemId: '', quantity: 0 };
+                          const availableItems = findAllItemsForComponent(comp.itemId, comp.itemName, selectedLocationId);
+                          const selectedVariant = availableItems.find(i => i.id === entry.selectedItemId);
+                          const currentStock = selectedVariant ? selectedVariant.quantity : 0;
+                          const newStock = currentStock - entry.quantity;
+                          const isInvalid = !!entry.selectedItemId && newStock < 0;
 
-                          <div className="flex-1 w-full">
-                            <label className="block text-xs font-bold text-[#660099] mb-1">EPI Específico (Escolha o tamanho) *</label>
-                            <select
-                              value={entry.selectedItemId}
-                              onChange={(e) => setKitEntries(prev => ({ ...prev, [idx]: { ...prev[idx], selectedItemId: e.target.value } }))}
-                              className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-semibold focus:ring-2 focus:ring-[#660099] focus:outline-none ${!entry.selectedItemId ? 'border-rose-300 text-rose-600' : 'border-purple-200 text-slate-800'}`}
-                              required
-                            >
-                              <option value="" disabled>Selecione um tamanho/variante...</option>
-                              {availableItems.map(item => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name} • Saldo: {item.quantity}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                          return (
+                            <tr key={idx} className="transition-colors hover:bg-slate-50">
+                              <td className="py-2 px-2 text-center">
+                                <img 
+                                  src={selectedVariant?.imageUrl || 'https://images.unsplash.com/photo-1584992236310-6edddc08acff?auto=format&fit=crop&q=80&w=150'} 
+                                  alt={comp.itemName} 
+                                  className="w-8 h-8 rounded-full object-cover border border-purple-100 mx-auto" 
+                                />
+                              </td>
+                              
+                              <td className="py-2 px-2 hidden sm:table-cell">
+                                <div className="font-bold text-slate-900">{comp.itemName}</div>
+                                <div className="text-[9px] text-slate-400 font-mono">Padrão: {comp.requiredQuantity} {comp.unit}</div>
+                              </td>
 
-                          <div className="w-full sm:w-28 shrink-0">
-                            <label className="block text-xs font-bold text-slate-600 mb-1 text-center">Qtd Entregue</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={entry.quantity}
-                              onChange={(e) => setKitEntries(prev => ({ ...prev, [idx]: { ...prev[idx], quantity: parseInt(e.target.value) || 0 } }))}
-                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-mono font-bold text-[#660099] focus:ring-2 focus:ring-[#660099] focus:outline-none"
-                              required
-                            />
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+                              <td className="py-2 px-2">
+                                {/* Mobile label for Componente */}
+                                <div className="sm:hidden font-bold text-slate-900 mb-1 text-[10px]">{comp.itemName} (Padrão: {comp.requiredQuantity})</div>
+                                <select
+                                  value={entry.selectedItemId}
+                                  onChange={(e) => setKitEntries(prev => ({ ...prev, [idx]: { ...prev[idx], selectedItemId: e.target.value } }))}
+                                  className={`w-full max-w-xs px-2 py-1.5 bg-white border rounded-lg text-[11px] sm:text-xs font-semibold focus:ring-2 focus:ring-[#660099] focus:outline-none ${!entry.selectedItemId ? 'border-rose-300 text-rose-600' : 'border-slate-200 text-slate-800'}`}
+                                  required
+                                >
+                                  <option value="" disabled>Selecione uma variante...</option>
+                                  {availableItems.map(item => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.name} {item.caNumber ? `(CA: ${item.caNumber})` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+
+                              <td className="py-2 px-2 text-center font-mono font-bold text-slate-800">
+                                {entry.selectedItemId ? currentStock : '-'}
+                                {entry.selectedItemId && <span className="text-[9px] text-slate-500 ml-0.5">{selectedVariant?.unit}</span>}
+                              </td>
+
+                              <td className="py-2 px-1 text-center bg-purple-50/30">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={entry.selectedItemId ? currentStock : 9999}
+                                  value={entry.quantity}
+                                  onChange={(e) => setKitEntries(prev => ({ ...prev, [idx]: { ...prev[idx], quantity: parseInt(e.target.value) || 0 } }))}
+                                  className={`w-full max-w-[60px] text-center py-1 px-1 font-mono font-bold text-[11px] sm:text-xs border rounded-md focus:ring-2 focus:ring-[#660099] focus:outline-none transition-all mx-auto block ${
+                                    isInvalid 
+                                      ? 'border-rose-500 bg-rose-50 text-rose-700' 
+                                      : 'border-slate-300 bg-white text-[#660099]'
+                                  }`}
+                                  required
+                                />
+                              </td>
+
+                              <td className="py-2 px-2 text-center font-mono text-[10px] hidden sm:table-cell">
+                                {entry.selectedItemId && entry.quantity > 0 ? (
+                                  <div className="flex flex-col items-center">
+                                    <span className={`font-bold ${isInvalid ? 'text-rose-600 font-extrabold' : 'text-slate-900'}`}>
+                                      {newStock} <span className="text-[9px] text-slate-500">{selectedVariant?.unit}</span>
+                                    </span>
+                                    <span className="text-[9px] font-bold text-rose-600">
+                                      (-{entry.quantity})
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
-
-            {/* Employee Data (for NR-6 compliance) */}
-            <div className="p-4 bg-[#FAF7FC] border border-purple-100 rounded-xl space-y-3 mt-6">
-              <span className="text-[11px] font-bold text-[#660099] uppercase tracking-wider block">
-                Dados do Colaborador / Recebedor (Para Ficha NR-6)
-              </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-slate-600 font-medium mb-1">Nome Completo</label>
-                  <input
-                    type="text"
-                    value={kitEmployeeName}
-                    onChange={(e) => setKitEmployeeName(e.target.value)}
-                    placeholder="Ex: Marcos Vinicius"
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-600 font-medium mb-1">Matrícula / RE</label>
-                  <input
-                    type="text"
-                    value={kitEmployeeReg}
-                    onChange={(e) => setKitEmployeeReg(e.target.value)}
-                    placeholder="Ex: VIV-8821"
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-medium mb-1">Função / Cargo</label>
-                <input
-                  type="text"
-                  value={kitEmployeeRole}
-                  onChange={(e) => setKitEmployeeRole(e.target.value)}
-                  placeholder="Ex: Técnico de Campo / Instalador"
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs"
-                />
-              </div>
-            </div>
 
             {/* Notes */}
             <div>

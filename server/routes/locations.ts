@@ -1,14 +1,29 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.js';
 
 export const locationsRouter = Router();
 locationsRouter.use(authenticate);
 
 // GET /api/locations
-locationsRouter.get('/', async (_req, res) => {
+locationsRouter.get('/', async (req: AuthRequest, res) => {
   try {
-    const locations = await prisma.location.findMany({ orderBy: { name: 'asc' } });
+    const isAdmin = req.user?.role === 'ADMIN';
+    const allowedLocations = req.user?.locationIds || [];
+
+    let whereClause = {};
+    if (!isAdmin) {
+      if (allowedLocations.length === 0) {
+        res.json([]);
+        return;
+      }
+      whereClause = { id: { in: allowedLocations } };
+    }
+
+    const locations = await prisma.location.findMany({ 
+      where: whereClause,
+      orderBy: { name: 'asc' } 
+    });
     res.json(locations);
   } catch {
     res.status(500).json({ message: 'Erro ao listar almoxarifados.' });
@@ -53,7 +68,7 @@ locationsRouter.put('/:id', requireAdmin, async (req, res) => {
 // DELETE /api/locations/:id
 locationsRouter.delete('/:id', requireAdmin, async (req, res) => {
   try {
-    const hasItems = await prisma.epiItem.count({ where: { locationId: req.params.id } });
+    const hasItems = await prisma.itemStock.count({ where: { locationId: req.params.id } });
     if (hasItems > 0) {
       res.status(400).json({ message: 'Não é possível excluir: existem itens vinculados a este almoxarifado.' });
       return;

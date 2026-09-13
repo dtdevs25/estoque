@@ -41,26 +41,14 @@ export const MovementsView: React.FC = () => {
     transferStock,
     adjustStock,
     setSelectedLocationId,
-    refreshData
+    refreshData,
+    userAccessibleLocations,
+    kits,
+    findAllItemsForComponent
   } = useStock();
 
   const isViewer = currentUser?.role === 'VIEWER';
-  const [activeSubTab, setActiveSubTab] = useState<'batch' | 'single' | 'history'>(isViewer ? 'history' : 'batch');
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  const handleSync = async () => {
-    setIsSyncing(true);
-    try {
-      await sharepoint.pull();
-      await refreshData();
-      setBatchSuccessMsg('Sincronização com SharePoint concluída com sucesso!');
-    } catch (e) {
-      console.error(e);
-      setBatchErrorMsg('Erro ao sincronizar com SharePoint. Tente novamente mais tarde.');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  const [activeSubTab, setActiveSubTab] = useState<'batch' | 'kit' | 'history'>(isViewer ? 'history' : 'batch');
 
   // ---- State for Batch / Daily Closing Mode ----
   
@@ -343,162 +331,107 @@ export const MovementsView: React.FC = () => {
     }
   };
 
-  // ---- State for Single / Unitary Mode ----
-  const [singleItemId, setSingleItemId] = useState<string>(() => items[0]?.id || '');
-  
-  const [singleCategoryFilter, setSingleCategoryFilter] = useState<'EPI_EPC' | 'ERGONOMICO'>('EPI_EPC');
-  const [singleType, setSingleType] = useState<MovementType>('SAIDA');
-  const [singleQty, setSingleQty] = useState<number>(1);
-  const [singleAdjustMode, setSingleAdjustMode] = useState<'DELTA' | 'FINAL'>('DELTA');
-  const [singleAdjustQty, setSingleAdjustQty] = useState<number>(0);
-  const [singleReason, setSingleReason] = useState<string>('Entregas aos Colaboradores');
-  const [singleDestinationLocationId, setSingleDestinationLocationId] = useState('');
-  const [singleEmployeeName, setSingleEmployeeName] = useState<string>('');
-  const [singleEmployeeRole, setSingleEmployeeRole] = useState<string>('');
-  const [singleEmployeeReg, setSingleEmployeeReg] = useState<string>('');
-  const [singleNotes, setSingleNotes] = useState<string>('');
-  const [singleSuccessMsg, setSingleSuccessMsg] = useState<string | null>(null);
-  const [singleErrorMsg, setSingleErrorMsg] = useState<string | null>(null);
+  // ---- State for Kit / Por Kit Mode ----
+  const [kitSelectedId, setKitSelectedId] = useState<string>('');
+  const [kitQuantity, setKitQuantity] = useState<number>(1);
+  const [kitReason, setKitReason] = useState<string>('Entrega de Kit (NR-6)');
+  const [kitEmployeeName, setKitEmployeeName] = useState<string>('');
+  const [kitEmployeeRole, setKitEmployeeRole] = useState<string>('');
+  const [kitEmployeeReg, setKitEmployeeReg] = useState<string>('');
+  const [kitNotes, setKitNotes] = useState<string>('');
+  const [kitSuccessMsg, setKitSuccessMsg] = useState<string | null>(null);
+  const [kitErrorMsg, setKitErrorMsg] = useState<string | null>(null);
+  const [kitEntries, setKitEntries] = useState<Record<number, { selectedItemId: string, quantity: number }>>({});
 
   useEffect(() => {
-    if (singleErrorMsg) {
-      const timer = setTimeout(() => setSingleErrorMsg(null), 5000);
+    if (kitErrorMsg) {
+      const timer = setTimeout(() => setKitErrorMsg(null), 5000);
       return () => clearTimeout(timer);
     }
-  }, [singleErrorMsg]);
+  }, [kitErrorMsg]);
 
   useEffect(() => {
-    if (singleSuccessMsg) {
-      const timer = setTimeout(() => setSingleSuccessMsg(null), 5000);
+    if (kitSuccessMsg) {
+      const timer = setTimeout(() => setKitSuccessMsg(null), 5000);
       return () => clearTimeout(timer);
     }
-  }, [singleSuccessMsg]);
+  }, [kitSuccessMsg]);
 
-  const filteredSingleItems = useMemo(() => {
-    return (items || []).filter(i => {
-      if (!i) return false;
-      const matchLoc = selectedLocationId === 'ALL' || !selectedLocationId || i.locationId === selectedLocationId || i.locationId === 'ALL';
-      let matchCat = true;
-      if (singleCategoryFilter === 'ERGONOMICO') {
-        matchCat = i.type === 'ERGONOMICO' || (i.category || '').toLowerCase().includes('ergonômic') || (i.category || '').toLowerCase().includes('ergonomic');
-      } else {
-        matchCat = i.type !== 'ERGONOMICO' && !(i.category || '').toLowerCase().includes('ergonômic') && !(i.category || '').toLowerCase().includes('ergonomic');
-      }
-      return matchLoc && matchCat;
+  const selectedKit = useMemo(() => kits.find(k => k.id === kitSelectedId), [kits, kitSelectedId]);
+
+  // When kit or kit quantity changes, recalculate default entries
+  useEffect(() => {
+    if (!selectedKit) {
+      setKitEntries({});
+      return;
+    }
+    const newEntries: Record<number, { selectedItemId: string, quantity: number }> = {};
+    selectedKit.components.forEach((comp, idx) => {
+      const matchingItems = findAllItemsForComponent(comp.itemId, comp.itemName, selectedLocationId);
+      const defaultItem = matchingItems.length > 0 ? matchingItems[0].id : '';
+      newEntries[idx] = {
+        selectedItemId: defaultItem,
+        quantity: comp.requiredQuantity * kitQuantity
+      };
     });
-  }, [items, selectedLocationId, singleCategoryFilter]);
+    setKitEntries(newEntries);
+  }, [selectedKit, kitQuantity, selectedLocationId]);
 
-  const handleSingleReasonChange = (newReason: string) => {
-    setSingleReason(newReason);
-    if (newReason === 'Ajuste de Estoque / Contagem Física') {
-      setSingleType('AJUSTE' as any);
-      setSingleAdjustQty(0);
-    } else {
-      const isEntrada = newReason.toLowerCase().includes('recebimento') || newReason.toLowerCase().includes('entrada');
-      setSingleType(isEntrada ? 'ENTRADA' : 'SAIDA');
-    }
-  };
-
-  const selectedSingleItem = items.find(i => i.id === singleItemId);
-
-  const calculatedSingleAdjustment = useMemo(() => {
-    const currentStock = selectedSingleItem?.quantity || 0;
-    const val = singleAdjustQty || 0;
-
-    let target = currentStock;
-    let diff = 0;
-
-    if (singleAdjustMode === 'DELTA') {
-      target = Math.max(0, currentStock + val);
-      diff = val;
-    } else {
-      target = Math.max(0, val);
-      diff = target - currentStock;
-    }
-
-    return {
-      targetStock: target,
-      diff,
-      val
-    };
-  }, [selectedSingleItem, singleAdjustQty, singleAdjustMode]);
-
-  const handleSubmitSingle = async (e: React.FormEvent) => {
+  const handleSubmitKit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSingleErrorMsg(null);
-    setSingleSuccessMsg(null);
+    setKitErrorMsg(null);
+    setKitSuccessMsg(null);
 
-    if (!singleItemId) {
-      setSingleErrorMsg('Selecione um EPI.');
+    if (!selectedKit) {
+      setKitErrorMsg('Selecione um Kit.');
       return;
     }
 
-    if (singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any)) {
-      const targetQty = calculatedSingleAdjustment.targetStock;
-
-      const res = await adjustStock({
-        itemId: singleItemId,
-        newQuantity: targetQty,
-        reason: singleReason,
-        notes: singleNotes,
-      });
-
-      if (res.success) {
-        setSingleSuccessMsg(`Ajuste de estoque do item "${selectedSingleItem?.name}" registrado com sucesso! Novo saldo: ${targetQty} ${selectedSingleItem?.unit || 'un'}.`);
-        setSingleAdjustQty(0);
-        setSingleNotes('');
-      } else {
-        setSingleErrorMsg(res.error || 'Erro ao registrar ajuste de estoque.');
-      }
+    if (!selectedLocationId || selectedLocationId === 'ALL') {
+      setKitErrorMsg('Selecione um Almoxarifado.');
       return;
     }
 
-    if (singleQty <= 0) {
-      setSingleErrorMsg('A quantidade deve ser maior que zero.');
-      return;
-    }
-
-    if (singleReason === 'Movimentação de estoque') {
-      if (!singleDestinationLocationId) {
-        setSingleErrorMsg('Selecione para qual estoque o item será transferido.');
+    const batchEntries = [];
+    for (let i = 0; i < selectedKit.components.length; i++) {
+      const entry = kitEntries[i];
+      if (!entry) continue;
+      if (!entry.selectedItemId) {
+        setKitErrorMsg(`Nenhum item válido selecionado para o componente "${selectedKit.components[i].itemName}".`);
         return;
       }
-      
-      const res = await transferStock({
-        itemId: singleItemId,
-        toLocationId: singleDestinationLocationId,
-        quantity: singleQty,
-        reason: 'Transferência Avulsa / Movimentação de Estoque',
-        employeeName: currentUser.name
-      });
-      
-      if (res.success) {
-        setSingleSuccessMsg(`Item transferido com sucesso para o novo almoxarifado.`);
-        setSingleQty(1);
-        setSingleNotes('');
-      } else {
-        setSingleErrorMsg(res.error || 'Erro ao registrar transferência.');
+      if (entry.quantity > 0) {
+        batchEntries.push({
+          itemId: entry.selectedItemId,
+          quantity: entry.quantity,
+          type: 'ENTREGA_KIT' as const,
+          notes: kitNotes
+        });
       }
+    }
+
+    if (batchEntries.length === 0) {
+      setKitErrorMsg('Nenhum item para registrar entrega (todas as quantidades estão zeradas).');
       return;
     }
 
-    const res = await registerSingleMovement({
-      itemId: singleItemId,
-      type: singleType,
-      quantity: singleQty,
-      reason: singleReason,
-      employeeName: singleEmployeeName,
-      employeeRole: singleEmployeeRole,
-      employeeRegistration: singleEmployeeReg,
-      notes: singleNotes,
+    const res = await registerBatchMovement({
+      locationId: selectedLocationId,
+      entries: batchEntries,
+      reason: kitReason,
+      employeeName: kitEmployeeName,
+      employeeRole: kitEmployeeRole,
+      employeeRegistration: kitEmployeeReg,
+      notes: kitNotes,
+      isDailyClosing: false
     });
 
     if (res.success) {
-      setSingleSuccessMsg(`Movimentação de ${singleQty} ${selectedSingleItem?.unit || 'un'} registrada com sucesso!`);
-      setSingleQty(1);
-      setSingleNotes('');
+      setKitSuccessMsg(`Entrega de ${kitQuantity}x "${selectedKit.name}" registrada com sucesso!`);
+      setKitQuantity(1);
+      setKitNotes('');
     } else {
-      setSingleErrorMsg(res.error || 'Erro ao registrar movimentação.');
+      setKitErrorMsg(res.error || 'Erro ao registrar entrega de kit.');
     }
   };
 
@@ -560,15 +493,6 @@ export const MovementsView: React.FC = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Entregas & Movimentações
           </h1>
-          <button
-            onClick={handleSync}
-            disabled={isSyncing}
-            className="flex items-center justify-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
-            title="Puxar dados do SharePoint e atualizar saldos"
-          >
-            <RotateCcw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{isSyncing ? 'Sincronizando...' : 'Sincronizar'}</span>
-          </button>
         </div>
 
         {/* Sub-Tabs Switcher */}
@@ -590,16 +514,16 @@ export const MovementsView: React.FC = () => {
               </button>
 
               <button
-                id="subtab-single"
-                onClick={() => setActiveSubTab('single')}
+                id="subtab-kit"
+                onClick={() => setActiveSubTab('kit')}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${
-                  activeSubTab === 'single'
+                  activeSubTab === 'kit'
                     ? 'bg-[#660099] text-white shadow-sm shadow-purple-950/20'
                     : 'text-slate-600 hover:text-[#660099]'
                 }`}
               >
-                <PlusCircle className="w-4 h-4" />
-                <span>Avulso</span>
+                <PackageCheck className="w-4 h-4" />
+                <span>Por Kit</span>
               </button>
             </>
           )}
@@ -668,7 +592,7 @@ export const MovementsView: React.FC = () => {
                     <option value="" disabled selected={selectedLocationId === 'ALL'}>
                       Selecione um almoxarifado...
                     </option>
-                    {(locations || []).map(loc => (
+                    {(userAccessibleLocations || []).map(loc => (
                       <option key={loc.id} value={loc.id}>
                         📍 {loc.name}
                       </option>
@@ -1042,221 +966,140 @@ export const MovementsView: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. MODO AVULSO (UNITÁRIO)                                                 */}
+      {/* 2. MODO POR KIT (ENTREGA EM MASSA BASEADA EM KIT)                         */}
       {/* ========================================================================= */}
-      {activeSubTab === 'single' && (
-        <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-purple-100 p-6 shadow-xs">
+      {activeSubTab === 'kit' && (
+        <div className="max-w-4xl mx-auto bg-white rounded-2xl border border-purple-100 p-6 shadow-xs">
           <div className="border-b border-purple-50 pb-4 mb-5">
-            <h2 className="text-lg font-bold text-slate-900">Lançamento de Movimentação Individual</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Registre uma entrega avulsa, devolução, descarte ou entrada de estoque pontual.</p>
+            <h2 className="text-lg font-bold text-slate-900">Entrega por Kit</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Selecione um kit cadastrado para preencher automaticamente os itens e quantidades.</p>
           </div>
 
-          {singleSuccessMsg && (
+          {kitSuccessMsg && (
             <div className="mb-5 p-4 bg-purple-50 border border-purple-200 text-[#660099] rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-[#660099] shrink-0" />
-              <span>{singleSuccessMsg}</span>
+              <span>{kitSuccessMsg}</span>
             </div>
           )}
 
-          {singleErrorMsg && (
+          {kitErrorMsg && (
             <div className="mb-5 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
-              <span>{singleErrorMsg}</span>
+              <span>{kitErrorMsg}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmitSingle} className="space-y-4 text-xs sm:text-sm">
+          <form onSubmit={handleSubmitKit} className="space-y-6 text-xs sm:text-sm">
             
-            {/* Location & Category filters for Item Select */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-1">
+            {/* Header / Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-slate-600 text-xs font-bold mb-1">Filtrar por Almoxarifado</label>
+                <label className="block text-slate-600 font-bold mb-1">Localidade / Almoxarifado *</label>
                 <select
                   value={selectedLocationId}
                   onChange={(e) => setSelectedLocationId(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-[#660099] focus:outline-none"
+                  required
                 >
-                  <option value="ALL">🏢 Todos os Almoxarifados</option>
-                  {(locations || []).map(loc => (
+                  <option value="" disabled selected={selectedLocationId === 'ALL'}>Selecione...</option>
+                  {(userAccessibleLocations || []).map(loc => (
                     <option key={loc.id} value={loc.id}>📍 {loc.name}</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-slate-600 text-xs font-bold mb-1">Filtrar por Categoria</label>
+                <label className="block text-slate-600 font-bold mb-1">Qual Kit será entregue? *</label>
                 <select
-                  value={singleCategoryFilter}
-                  onChange={(e) => setSingleCategoryFilter(e.target.value as any)}
-                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  value={kitSelectedId}
+                  onChange={(e) => setKitSelectedId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-[#660099] focus:outline-none"
+                  required
                 >
-                  <option value="EPI_EPC">EPI / EPC</option>
-                  <option value="ERGONOMICO">Ergonômicos</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Item Selector */}
-            <div>
-              <label className="block text-slate-700 font-bold mb-1.5">Equipamento de Proteção (EPI) *</label>
-              <select
-                id="single-item-select"
-                value={singleItemId}
-                onChange={(e) => setSingleItemId(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
-                required
-              >
-                {filteredSingleItems.length === 0 ? (
-                  <option value="">Nenhum EPI encontrado com esses filtros</option>
-                ) : (
-                  filteredSingleItems.map(i => {
-                    const loc = (locations || []).find(l => l.id === i.locationId);
-                    return (
-                      <option key={i.id} value={i.id}>
-                        {i.name} (CA: {i.caNumber || 'N/A'}) • Saldo: {i.quantity} {i.unit || 'un'} • {loc?.name || 'Local'}
-                      </option>
-                    );
-                  })
-                )}
-              </select>
-            </div>
-
-            {/* Movement Type & Qty */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-slate-700 font-bold mb-1.5">Tipo</label>
-                <select
-                  value={singleType}
-                  onChange={(e) => {
-                    const newT = e.target.value as any;
-                    setSingleType(newT);
-                    if (newT === 'AJUSTE') {
-                      setSingleReason('Ajuste de Estoque / Contagem Física');
-                      setSingleAdjustQty(0);
-                    }
-                  }}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
-                >
-                  <option value="SAIDA">Saída</option>
-                  <option value="ENTRADA">Entrada</option>
-                  <option value="AJUSTE">Ajuste de Estoque</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-bold mb-1.5">
-                  {singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any)
-                    ? (singleAdjustMode === 'DELTA' ? `Variação do Ajuste (+ / -) (${selectedSingleItem?.unit || 'un'}) *` : `Novo Saldo Final Apurado (${selectedSingleItem?.unit || 'un'}) *`)
-                    : `Quantidade (${selectedSingleItem?.unit || 'un'}) *`}
-                </label>
-                {singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any) ? (
-                  <input
-                    id="single-qty-input"
-                    type="number"
-                    step="1"
-                    min={singleAdjustMode === 'DELTA' ? undefined : "0"}
-                    placeholder={singleAdjustMode === 'DELTA' ? "0 (ex: -2 ou 5)" : String(selectedSingleItem?.quantity || 0)}
-                    value={singleAdjustQty || ''}
-                    onChange={(e) => setSingleAdjustQty(parseInt(e.target.value, 10) || 0)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
-                    required
-                  />
-                ) : (
-                  <input
-                    id="single-qty-input"
-                    type="number"
-                    min="1"
-                    value={singleQty}
-                    onChange={(e) => setSingleQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
-                    required
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Helper box and mode toggle for AJUSTE mode */}
-            {(singleReason === 'Ajuste de Estoque / Contagem Física' || singleType === ('AJUSTE' as any)) && selectedSingleItem && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 bg-purple-50 p-2 rounded-xl border border-purple-100 text-xs">
-                  <span className="font-bold text-[#660099]">Modo do Ajuste:</span>
-                  <div className="flex flex-wrap bg-white p-0.5 rounded-lg border border-purple-200 shadow-xs">
-                    <button
-                      type="button"
-                      onClick={() => setSingleAdjustMode('DELTA')}
-                      className={`px-2.5 py-1 rounded-md transition-all font-semibold ${
-                        singleAdjustMode === 'DELTA' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
-                      }`}
-                    >
-                      📊 Variação (+ / -) (ex: -2 ou +5)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSingleAdjustMode('FINAL')}
-                      className={`px-2.5 py-1 rounded-md transition-all font-semibold ${
-                        singleAdjustMode === 'FINAL' ? 'bg-[#660099] text-white shadow-xs font-bold' : 'text-slate-600 hover:text-[#660099]'
-                      }`}
-                    >
-                      🔢 Saldo Final Apurado (ex: 40)
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-center justify-between font-medium">
-                  <div>
-                    <span className="text-slate-600 block text-[11px]">Estoque Cadastrado no Sistema:</span>
-                    <strong className="text-slate-900 text-sm">{selectedSingleItem.quantity} {selectedSingleItem.unit || 'un'}</strong>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-slate-600 block text-[11px]">Variação do Ajuste:</span>
-                    <strong className={`text-sm font-mono ${calculatedSingleAdjustment.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                      {calculatedSingleAdjustment.diff >= 0 ? `+${calculatedSingleAdjustment.diff}` : `${calculatedSingleAdjustment.diff}`} {selectedSingleItem.unit || 'un'}
-                    </strong>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-slate-600 block text-[11px]">Novo Saldo Apurado:</span>
-                    <strong className="text-[#660099] text-sm font-bold font-mono">
-                      {calculatedSingleAdjustment.targetStock} {selectedSingleItem.unit || 'un'}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Reason */}
-            <div>
-              <label className="block text-slate-700 font-bold mb-1.5">Motivo ou tipo de operação *</label>
-              <select
-                value={singleReason}
-                onChange={(e) => handleSingleReasonChange(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none font-medium"
-                required
-              >
-                <option value="Entregas aos Colaboradores">Entregas aos Colaboradores (Saída)</option>
-                <option value="Recebimento de material">Recebimento de material (Entrada)</option>
-                <option value="Ajuste de Estoque / Contagem Física">Ajuste de Estoque / Contagem Física</option>
-                <option value="Movimentação de estoque">Movimentação de estoque (Saída/Transferência)</option>
-              </select>
-            </div>
-
-            {singleReason === 'Movimentação de estoque' && (
-              <div>
-                <label className="block text-[#660099] font-bold mb-1.5">Para qual estoque vai? *</label>
-                <select
-                  value={singleDestinationLocationId}
-                  onChange={(e) => setSingleDestinationLocationId(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-purple-50 border border-purple-200 rounded-xl text-[#660099] font-semibold focus:ring-2 focus:ring-[#660099] focus:outline-none"
-                >
-                  <option value="">Selecione o destino...</option>
-                  {locations.filter(l => l.id !== selectedSingleItem?.locationId).map(loc => (
-                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  <option value="">Selecione um Kit...</option>
+                  {(kits || []).map(k => (
+                    <option key={k.id} value={k.id}>📦 {k.name}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-bold mb-1">Quantidade de Kits *</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={kitQuantity}
+                  onChange={(e) => setKitQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold font-mono text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Components List */}
+            {selectedKit && (
+              <div className="border border-purple-100 rounded-2xl overflow-hidden bg-slate-50/50">
+                <div className="bg-purple-50/50 px-4 py-3 border-b border-purple-100 flex items-center justify-between">
+                  <span className="font-bold text-[#660099]">Itens do Kit: {selectedKit.name}</span>
+                  <span className="text-xs text-slate-500 font-medium">Você pode ajustar as quantidades abaixo, se necessário.</span>
+                </div>
+                
+                <div className="p-4 space-y-4">
+                  {selectedKit.components.length === 0 ? (
+                    <p className="text-slate-500 text-center py-4">Este kit não possui componentes configurados.</p>
+                  ) : (
+                    selectedKit.components.map((comp, idx) => {
+                      const entry = kitEntries[idx] || { selectedItemId: '', quantity: 0 };
+                      const availableItems = findAllItemsForComponent(comp.itemId, comp.itemName, selectedLocationId);
+                      
+                      return (
+                        <div key={idx} className="flex flex-col sm:flex-row items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                          
+                          <div className="flex-1 w-full">
+                            <span className="block text-xs font-bold text-slate-600 mb-1">Componente do Kit</span>
+                            <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 font-medium truncate">
+                              {comp.itemName} (Padrão: {comp.requiredQuantity} {comp.unit})
+                            </div>
+                          </div>
+
+                          <div className="flex-1 w-full">
+                            <label className="block text-xs font-bold text-[#660099] mb-1">EPI Específico (Escolha o tamanho) *</label>
+                            <select
+                              value={entry.selectedItemId}
+                              onChange={(e) => setKitEntries(prev => ({ ...prev, [idx]: { ...prev[idx], selectedItemId: e.target.value } }))}
+                              className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-semibold focus:ring-2 focus:ring-[#660099] focus:outline-none ${!entry.selectedItemId ? 'border-rose-300 text-rose-600' : 'border-purple-200 text-slate-800'}`}
+                              required
+                            >
+                              <option value="" disabled>Selecione um tamanho/variante...</option>
+                              {availableItems.map(item => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name} • Saldo: {item.quantity}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="w-full sm:w-28 shrink-0">
+                            <label className="block text-xs font-bold text-slate-600 mb-1 text-center">Qtd Entregue</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={entry.quantity}
+                              onChange={(e) => setKitEntries(prev => ({ ...prev, [idx]: { ...prev[idx], quantity: parseInt(e.target.value) || 0 } }))}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-mono font-bold text-[#660099] focus:ring-2 focus:ring-[#660099] focus:outline-none"
+                              required
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
 
             {/* Employee Data (for NR-6 compliance) */}
-            <div className="p-4 bg-[#FAF7FC] border border-purple-100 rounded-xl space-y-3">
+            <div className="p-4 bg-[#FAF7FC] border border-purple-100 rounded-xl space-y-3 mt-6">
               <span className="text-[11px] font-bold text-[#660099] uppercase tracking-wider block">
                 Dados do Colaborador / Recebedor (Para Ficha NR-6)
               </span>
@@ -1266,8 +1109,8 @@ export const MovementsView: React.FC = () => {
                   <label className="block text-slate-600 font-medium mb-1">Nome Completo</label>
                   <input
                     type="text"
-                    value={singleEmployeeName}
-                    onChange={(e) => setSingleEmployeeName(e.target.value)}
+                    value={kitEmployeeName}
+                    onChange={(e) => setKitEmployeeName(e.target.value)}
                     placeholder="Ex: Marcos Vinicius"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs"
                   />
@@ -1277,8 +1120,8 @@ export const MovementsView: React.FC = () => {
                   <label className="block text-slate-600 font-medium mb-1">Matrícula / RE</label>
                   <input
                     type="text"
-                    value={singleEmployeeReg}
-                    onChange={(e) => setSingleEmployeeReg(e.target.value)}
+                    value={kitEmployeeReg}
+                    onChange={(e) => setKitEmployeeReg(e.target.value)}
                     placeholder="Ex: VIV-8821"
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs"
                   />
@@ -1289,8 +1132,8 @@ export const MovementsView: React.FC = () => {
                 <label className="block text-slate-600 font-medium mb-1">Função / Cargo</label>
                 <input
                   type="text"
-                  value={singleEmployeeRole}
-                  onChange={(e) => setSingleEmployeeRole(e.target.value)}
+                  value={kitEmployeeRole}
+                  onChange={(e) => setKitEmployeeRole(e.target.value)}
                   placeholder="Ex: Técnico de Campo / Instalador"
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs"
                 />
@@ -1302,20 +1145,22 @@ export const MovementsView: React.FC = () => {
               <label className="block text-slate-700 font-bold mb-1.5">Observações Adicionais</label>
               <textarea
                 rows={2}
-                value={singleNotes}
-                onChange={(e) => setSingleNotes(e.target.value)}
-                placeholder="Observações sobre condição do EPI, substituição periódica, etc."
+                value={kitNotes}
+                onChange={(e) => setKitNotes(e.target.value)}
+                placeholder="Ex: Colaborador substituiu kit rasgado."
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-[#660099] focus:outline-none text-xs"
               />
             </div>
 
             <div className="pt-3 flex justify-end">
               <button
-                id="btn-submit-single-movement"
+                id="btn-submit-kit-movement"
                 type="submit"
-                className="px-6 py-2.5 bg-[#660099] hover:bg-[#52007a] text-white rounded-xl font-bold text-sm shadow-md shadow-purple-950/20 transition-all active:scale-95"
+                disabled={!selectedKit || selectedKit.components.length === 0}
+                className="flex items-center gap-2 px-6 py-3 bg-[#660099] hover:bg-[#52007a] disabled:bg-slate-300 disabled:text-slate-500 text-white rounded-xl font-extrabold text-sm shadow-md shadow-purple-950/20 transition-all active:scale-95 cursor-pointer"
               >
-                Registrar Movimentação
+                <PackageCheck className="w-5 h-5" />
+                Registrar Entrega de Kit
               </button>
             </div>
 

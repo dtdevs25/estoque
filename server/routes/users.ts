@@ -57,10 +57,11 @@ usersRouter.post('/', requireAdmin, async (req: AuthRequest, res) => {
     });
 
     // Save setup token
+    const hashedToken = crypto.createHash('sha256').update(tempToken).digest('hex');
     await prisma.passwordResetToken.create({
       data: {
         userId: user.id,
-        token: tempToken,
+        token: hashedToken,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
       },
     });
@@ -115,8 +116,9 @@ usersRouter.post('/:id/resend-password', requireAdmin, async (req, res) => {
     if (!user) { res.status(404).json({ message: 'Usuário não encontrado.' }); return; }
 
     const token = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
     await prisma.passwordResetToken.create({
-      data: { userId: user.id, token, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+      data: { userId: user.id, token: hashedToken, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
     });
     await sendPasswordSetupEmail(user.email, user.name, token);
     res.json({ success: true });

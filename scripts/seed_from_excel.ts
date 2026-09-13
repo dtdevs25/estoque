@@ -74,33 +74,43 @@ async function seedFromExcel() {
     for (const loc of dbLocations) {
       const quantidadeNaPlanilha = Number(row[loc.colIndex]) || 0;
       
-      const existingItem = await prisma.epiItem.findFirst({
-        where: {
-          name: finalName,
-          locationId: loc.id
-        }
+      let existingItem = await prisma.epiItem.findFirst({
+        where: { name: finalName }
       });
 
       if (!existingItem) {
-        await prisma.epiItem.create({
+        existingItem = await prisma.epiItem.create({
           data: {
             name: finalName,
             category: 'EPI',
             type: 'EPI',
             unit: 'UN',
-            quantity: quantidadeNaPlanilha,
-            locationId: loc.id,
           }
         });
         itemsCriados++;
-      } else {
-         // Se já existir, apenas atualiza a quantidade
-         if (existingItem.quantity !== quantidadeNaPlanilha) {
-            await prisma.epiItem.update({
-               where: { id: existingItem.id },
-               data: { quantity: quantidadeNaPlanilha }
-            });
-         }
+      }
+
+      const existingStock = await prisma.itemStock.findFirst({
+        where: {
+          itemId: existingItem.id,
+          locationId: loc.id
+        }
+      });
+
+      if (!existingStock) {
+        await prisma.itemStock.create({
+          data: {
+            itemId: existingItem.id,
+            locationId: loc.id,
+            quantity: quantidadeNaPlanilha,
+            minQuantity: 0,
+          }
+        });
+      } else if (existingStock.quantity !== quantidadeNaPlanilha) {
+        await prisma.itemStock.update({
+          where: { id: existingStock.id },
+          data: { quantity: quantidadeNaPlanilha }
+        });
       }
     }
   }

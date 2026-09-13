@@ -163,7 +163,7 @@ sharepointRouter.post('/sync', authenticate, requireAdminOrController, async (re
       return;
     }
 
-    const results: { location: string; sent: number; paStatus: number }[] = [];
+    const results: { location: string; sent: number; paStatus: number; paResponse?: any }[] = [];
 
     for (const loc of locations) {
       const stocks = await prisma.itemStock.findMany({
@@ -516,22 +516,26 @@ sharepointRouter.post('/ingest', async (req: Request, res: Response) => {
         continue;
       }
 
-      const dbItems = await prisma.epiItem.findMany({ where: { locationId: dbLocation.id } });
+      const dbStocks = await prisma.itemStock.findMany({ 
+        where: { locationId: dbLocation.id },
+        include: { item: true }
+      });
       let matched = 0, updated = 0, skipped = 0;
       const notFound: string[] = [];
 
       for (const spItem of locPayload.items) {
         if (!spItem.descricao) continue;
         const spNorm = normalize(spItem.descricao);
-        let dbItem = dbItems.find(i => normalize(i.name) === spNorm)
-          ?? dbItems.find(i => normalize(i.name).includes(spNorm) || spNorm.includes(normalize(i.name)));
+        let dbStock = dbStocks.find(s => normalize(s.item.name) === spNorm)
+          ?? dbStocks.find(s => normalize(s.item.name).includes(spNorm) || spNorm.includes(normalize(s.item.name)));
 
-        if (!dbItem) { notFound.push(spItem.descricao); continue; }
+        if (!dbStock) { notFound.push(spItem.descricao); continue; }
         matched++;
-        if (dbItem.quantity === spItem.quantidade) { skipped++; continue; }
+        if (dbStock.quantity === spItem.quantidade) { skipped++; continue; }
 
-        const prev = dbItem.quantity;
-        await prisma.epiItem.update({ where: { id: dbItem.id }, data: { quantity: spItem.quantidade } });
+        const prev = dbStock.quantity;
+        await prisma.itemStock.update({ where: { id: dbStock.id }, data: { quantity: spItem.quantidade } });
+        const dbItem = dbStock.item;
         await prisma.stockMovement.create({
           data: {
             type: 'AJUSTE', quantity: Math.abs(spItem.quantidade - prev),

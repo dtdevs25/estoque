@@ -1,15 +1,22 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { authenticate, requireAdmin, requireAdminOrController } from '../middleware/auth.js';
+import { authenticate, requireAdmin, requireAdminOrController, AuthRequest } from '../middleware/auth.js';
 
 export const itemsRouter = Router();
 itemsRouter.use(authenticate);
 
 // GET /api/items
-itemsRouter.get('/', async (_req, res) => {
+itemsRouter.get('/', async (req: AuthRequest, res) => {
   try {
+    const isAdmin = req.user?.role === 'ADMIN';
+    const allowedLocations = req.user?.locationIds || [];
+
     const items = await prisma.epiItem.findMany({
-      include: { stocks: true },
+      include: { 
+        stocks: isAdmin ? true : {
+          where: { locationId: { in: allowedLocations } }
+        }
+      },
       orderBy: { name: 'asc' }
     });
     res.json(items);
@@ -19,11 +26,18 @@ itemsRouter.get('/', async (_req, res) => {
 });
 
 // GET /api/items/:id
-itemsRouter.get('/:id', async (req, res) => {
+itemsRouter.get('/:id', async (req: AuthRequest, res) => {
   try {
+    const isAdmin = req.user?.role === 'ADMIN';
+    const allowedLocations = req.user?.locationIds || [];
+
     const item = await prisma.epiItem.findUnique({
       where: { id: req.params.id },
-      include: { stocks: true }
+      include: { 
+        stocks: isAdmin ? true : {
+          where: { locationId: { in: allowedLocations } }
+        }
+      }
     });
     if (!item) { res.status(404).json({ message: 'Item não encontrado.' }); return; }
     res.json(item);

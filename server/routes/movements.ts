@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, AuthRequest } from '../middleware/auth.js';
 
 export const movementsRouter = Router();
 movementsRouter.use(authenticate);
@@ -24,9 +24,22 @@ async function getOrCreateItemStock(tx: any, itemId: string, locationId: string)
 }
 
 // GET /api/movements
-movementsRouter.get('/', async (_req, res) => {
+movementsRouter.get('/', async (req: AuthRequest, res) => {
   try {
+    const isAdmin = req.user?.role === 'ADMIN';
+    const allowedLocations = req.user?.locationIds || [];
+
+    let whereClause = {};
+    if (!isAdmin) {
+      if (allowedLocations.length === 0) {
+        res.json([]);
+        return;
+      }
+      whereClause = { locationId: { in: allowedLocations } };
+    }
+
     const movs = await prisma.stockMovement.findMany({
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
       take: 1500,
     });
@@ -37,7 +50,7 @@ movementsRouter.get('/', async (_req, res) => {
 });
 
 // POST /api/movements/single
-movementsRouter.post('/single', async (req, res) => {
+movementsRouter.post('/single', async (req: AuthRequest, res) => {
   try {
     const { itemId, type, quantity, reason, employeeName, employeeRole, employeeRegistration, notes } = req.body;
     
@@ -90,7 +103,7 @@ movementsRouter.post('/single', async (req, res) => {
 });
 
 // POST /api/movements/batch
-movementsRouter.post('/batch', async (req, res) => {
+movementsRouter.post('/batch', async (req: AuthRequest, res) => {
   try {
     const { locationId, entries, reason, employeeName, employeeRole, employeeRegistration, isDailyClosing, notes, customDate } = req.body;
     if (!entries || !Array.isArray(entries) || entries.length === 0) {
@@ -149,7 +162,7 @@ movementsRouter.post('/batch', async (req, res) => {
 });
 
 // POST /api/movements/transfer
-movementsRouter.post('/transfer', async (req, res) => {
+movementsRouter.post('/transfer', async (req: AuthRequest, res) => {
   try {
     const { sourceItemId, targetLocationId, quantity, reason, employeeName, notes } = req.body;
     const qty = Number(quantity);
@@ -203,7 +216,7 @@ movementsRouter.post('/transfer', async (req, res) => {
 });
 
 // POST /api/movements/adjust
-movementsRouter.post('/adjust', async (req, res) => {
+movementsRouter.post('/adjust', async (req: AuthRequest, res) => {
   try {
     const { itemId, locationId, newQuantity, reason, notes } = req.body;
     if (newQuantity < 0) return res.status(400).json({ message: 'Quantidade inválida.' });
@@ -234,7 +247,7 @@ movementsRouter.post('/adjust', async (req, res) => {
 });
 
 // POST /api/movements/deliver-kit
-movementsRouter.post('/deliver-kit', async (req, res) => {
+movementsRouter.post('/deliver-kit', async (req: AuthRequest, res) => {
   try {
     const { kitId, locationId, quantityOfKits, employeeName, employeeRole, employeeRegistration, notes } = req.body;
 

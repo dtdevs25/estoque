@@ -62,7 +62,10 @@ export interface EpiItem {
   description?: string;
   updatedAt: string;
 
-  stocks?: ItemStock[];\n  quantity?: number;\n  minQuantity?: number;\n  locationId?: string;
+  stocks?: ItemStock[];
+  quantity?: number;
+  minQuantity?: number;
+  locationId?: string;
 }
 
 export interface StockMovement {

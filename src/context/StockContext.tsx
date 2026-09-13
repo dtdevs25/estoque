@@ -91,6 +91,7 @@ interface StockContextType {
 
   getKitAvailabilityForLocation: (kitId: string, locationId: string) => KitAvailability | null;
   getAllKitsAvailability: (locationId?: string) => KitAvailability[];
+  findAllItemsForComponent: (itemId: string, itemName: string, locationId: string) => EpiItem[];
 
   resetToDefaultData: () => void;
   exportBackupJSON: () => string;
@@ -552,7 +553,7 @@ export const StockProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     addItem, updateItem, deleteItem,
     registerSingleMovement, registerBatchMovement, transferStock, adjustStock,
     addKit, updateKit, deleteKit, deliverKit,
-    getKitAvailabilityForLocation, getAllKitsAvailability,
+    getKitAvailabilityForLocation, getAllKitsAvailability, findAllItemsForComponent,
     resetToDefaultData, exportBackupJSON, importBackupJSON,
     refreshData: loadAll,
   };

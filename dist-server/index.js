@@ -538,11 +538,11 @@ var itemsRouter = Router4();
 itemsRouter.use(authenticate);
 itemsRouter.get("/", async (_req, res) => {
   try {
-    const items2 = await prisma.epiItem.findMany({
+    const items = await prisma.epiItem.findMany({
       include: { stocks: true },
       orderBy: { name: "asc" }
     });
-    res.json(items2);
+    res.json(items);
   } catch {
     res.status(500).json({ message: "Erro ao listar itens." });
   }
@@ -1154,7 +1154,7 @@ sharepointRouter.get("/status", authenticate, async (_req, res) => {
     res.status(500).json({ message: "Erro ao verificar status." });
   }
 });
-sharepointRouter.post("/sync", authenticate, requireAdmin, async (req, res) => {
+sharepointRouter.post("/sync", authenticate, requireAdminOrController, async (req, res) => {
   try {
     const paWebhookUrl = process.env.POWER_AUTOMATE_WEBHOOK_URL;
     if (!paWebhookUrl) {
@@ -1212,7 +1212,7 @@ sharepointRouter.post("/sync", authenticate, requireAdmin, async (req, res) => {
           paBody = JSON.parse(paText);
         } catch (e) {
         }
-        results.push({ location: loc.name, sent: items.length, paStatus: paRes.status, paResponse: paBody });
+        results.push({ location: loc.name, sent: payload.items.length, paStatus: paRes.status, paResponse: paBody });
       } catch (fetchErr) {
         console.error(`[sharepoint/sync] Erro enviando ${loc.name}:`, fetchErr);
         results.push({ location: loc.name, sent: 0, paStatus: -1 });
@@ -1251,7 +1251,7 @@ function fuzzyMatch(dbName, sheetName) {
   const ratio = matches / Math.max(wordsDb.length, wordsSheet.length);
   return ratio >= 0.8;
 }
-sharepointRouter.post("/pull", authenticate, requireAdmin, async (_req, res) => {
+sharepointRouter.post("/pull", authenticate, requireAdminOrController, async (_req, res) => {
   try {
     const paUrl = process.env.POWER_AUTOMATE_WEBHOOK_PULL_URL;
     if (!paUrl) {

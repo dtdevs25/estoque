@@ -104,6 +104,12 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
       alert('Você não pode excluir o usuário com o qual está conectado atualmente.');
       return;
     }
+
+    if (user.role === 'ADMIN') {
+      alert('Por segurança, um Administrador não pode excluir outro Administrador. Esta ação é restrita.');
+      return;
+    }
+
     setUserToDelete(user);
     setDeleteModalOpen(true);
   };
@@ -169,7 +175,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
         </div>
 
         <div className="flex items-center gap-2">
-          {(isCurrentUserAdmin || currentUser?.role === 'CONTROLLER') ? (
+          {isCurrentUserAdmin ? (
             <button
               id="users-add-btn"
               onClick={onOpenNewUser}
@@ -389,7 +395,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
                       <div className="flex items-center justify-end gap-1.5">
                         
                         {/* Reset Password Email Button */}
-                        {(isCurrentUserAdmin || currentUser?.role === 'CONTROLLER') && (
+                        {isCurrentUserAdmin && (
                           <button
                             onClick={() => handleResendPassword(user)}
                             disabled={resendingId === user.id}
@@ -405,7 +411,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ onOpenNewUser, onOpenEditU
                         )}
 
                         {/* Edit Button */}
-                        {(isCurrentUserAdmin || currentUser?.role === 'CONTROLLER') && (
+                        {isCurrentUserAdmin && (
                           <button
                             onClick={() => onOpenEditUser(user)}
                             title="Editar usuário"

@@ -43,7 +43,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({
     currentUser
   } = useStock();
 
-  const canEdit = isCurrentUserAdmin || currentUser?.role === 'CONTROLLER';
+  const canEdit = isCurrentUserAdmin;
   const canDelete = isCurrentUserAdmin;
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);

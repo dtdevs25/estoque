@@ -297,51 +297,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Administração Accordion */}
-          <div className="pt-2">
-            <button
-              onClick={() => {
-                if (isCollapsed) setIsCollapsed(false);
-                setIsAdminOpen(!isAdminOpen);
-              }}
-              title={isCollapsed ? "Administração" : undefined}
-              className={`w-full group flex items-center rounded-xl transition-all duration-150 cursor-pointer ${
-                isCollapsed ? 'justify-center p-3' : 'px-3 py-2.5 gap-3 justify-between'
-              } text-slate-600 hover:bg-purple-50 hover:text-[#660099] font-medium`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <Settings className="w-5 h-5 shrink-0 text-slate-500 group-hover:text-[#660099] transition-transform group-hover:scale-105" />
-                {!isCollapsed && <span className="text-sm truncate">Administração</span>}
-              </div>
-              {!isCollapsed && (
-                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isAdminOpen ? 'rotate-180' : ''}`} />
+          {isCurrentUserAdmin && (
+            <div className="pt-2">
+              <button
+                onClick={() => {
+                  if (isCollapsed) setIsCollapsed(false);
+                  setIsAdminOpen(!isAdminOpen);
+                }}
+                title={isCollapsed ? "Administração" : undefined}
+                className={`w-full group flex items-center rounded-xl transition-all duration-150 cursor-pointer ${
+                  isCollapsed ? 'justify-center p-3' : 'px-3 py-2.5 gap-3 justify-between'
+                } text-slate-600 hover:bg-purple-50 hover:text-[#660099] font-medium`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Settings className="w-5 h-5 shrink-0 text-slate-500 group-hover:text-[#660099] transition-transform group-hover:scale-105" />
+                  {!isCollapsed && <span className="text-sm truncate">Administração</span>}
+                </div>
+                {!isCollapsed && (
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isAdminOpen ? 'rotate-180' : ''}`} />
+                )}
+              </button>
+
+              {(!isCollapsed && isAdminOpen) && (
+                <div className="mt-1 pl-4 space-y-1 relative before:absolute before:left-[21px] before:top-0 before:bottom-0 before:w-[1.5px] before:bg-purple-100">
+                  {adminMenuItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleNavClick(item.id)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
+                          isActive
+                            ? 'bg-purple-50 text-[#660099] font-semibold'
+                            : 'text-slate-600 hover:bg-purple-50 hover:text-[#660099] font-medium'
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#660099]' : 'text-slate-400'}`} />
+                        <span className="text-sm truncate">{item.label}</span>
+                        {item.badge && <div className="shrink-0 ml-auto scale-90">{item.badge}</div>}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-            </button>
-
-            {(!isCollapsed && isAdminOpen) && (
-              <div className="mt-1 pl-4 space-y-1 relative before:absolute before:left-[21px] before:top-0 before:bottom-0 before:w-[1.5px] before:bg-purple-100">
-                {adminMenuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.id;
-
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNavClick(item.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
-                        isActive
-                          ? 'bg-purple-50 text-[#660099] font-semibold'
-                          : 'text-slate-600 hover:bg-purple-50 hover:text-[#660099] font-medium'
-                      }`}
-                    >
-                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#660099]' : 'text-slate-400'}`} />
-                      <span className="text-sm truncate">{item.label}</span>
-                      {item.badge && <div className="shrink-0 ml-auto scale-90">{item.badge}</div>}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
         </nav>
 

@@ -31,7 +31,9 @@ export const KitsView: React.FC<KitsViewProps> = ({
     currentUser,
     isCurrentUserAdmin,
     getKitAvailabilityForLocation,
-    selectedLocationId
+    selectedLocationId,
+    setSelectedLocationId,
+    locations
   } = useStock();
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -73,8 +75,22 @@ export const KitsView: React.FC<KitsViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-slate-600">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          {/* Location Selector */}
+          <div className="w-full sm:w-auto">
+            <select
+              value={selectedLocationId}
+              onChange={(e) => setSelectedLocationId(e.target.value)}
+              className="w-full px-3 py-2 text-xs font-semibold bg-white border border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#660099] text-[#660099] cursor-pointer shadow-sm shadow-purple-950/5"
+            >
+              <option value="ALL">Todas as Localidades</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-slate-600 w-full sm:w-auto justify-center sm:justify-start">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${

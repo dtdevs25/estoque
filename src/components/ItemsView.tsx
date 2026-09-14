@@ -143,7 +143,7 @@ export const ItemsView: React.FC<ItemsViewProps> = ({
 
       {/* Filter and Search Bar */}
       <div className="bg-white rounded-xl border border-purple-100/90 p-4 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           
           {/* Search Input */}
           <div className="relative lg:col-span-1">
@@ -156,6 +156,20 @@ export const ItemsView: React.FC<ItemsViewProps> = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#660099] focus:bg-white transition-all hover:border-purple-300"
             />
+          </div>
+
+          {/* Location Selector */}
+          <div>
+            <select
+              value={selectedLocationId}
+              onChange={(e) => setSelectedLocationId(e.target.value)}
+              className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#660099] focus:bg-white text-slate-700 hover:border-purple-300 cursor-pointer"
+            >
+              <option value="ALL">Todas as Localidades</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Category Selector */}

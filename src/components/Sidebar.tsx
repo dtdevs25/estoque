@@ -244,57 +244,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
 
           {/* Cadastros Accordion */}
-          <div className="pt-2">
-            <button
-              onClick={() => {
-                if (isCollapsed) setIsCollapsed(false);
-                setIsCadastrosOpen(!isCadastrosOpen);
-              }}
-              title={isCollapsed ? "Cadastros" : undefined}
-              className={`w-full group flex items-center rounded-xl transition-all duration-150 cursor-pointer ${
-                isCollapsed ? 'justify-center p-3' : 'px-3 py-2.5 gap-3 justify-between'
-              } text-slate-500 hover:bg-slate-100 hover:text-slate-800 font-bold uppercase tracking-wider text-[10px]`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <Boxes className="w-4 h-4 shrink-0" />
-                {!isCollapsed && <span>Cadastros</span>}
-              </div>
-              {!isCollapsed && (
-                <ChevronDown className={`w-3 h-3 transition-transform ${isCadastrosOpen ? 'rotate-180' : ''}`} />
+          {isCurrentUserAdmin && (
+            <div className="pt-2">
+              <button
+                onClick={() => {
+                  if (isCollapsed) setIsCollapsed(false);
+                  setIsCadastrosOpen(!isCadastrosOpen);
+                }}
+                title={isCollapsed ? "Cadastros" : undefined}
+                className={`w-full group flex items-center rounded-xl transition-all duration-150 cursor-pointer ${
+                  isCollapsed ? 'justify-center p-3' : 'px-3 py-2.5 gap-3 justify-between'
+                } text-slate-500 hover:bg-slate-100 hover:text-slate-800 font-bold uppercase tracking-wider text-[10px]`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Boxes className="w-4 h-4 shrink-0" />
+                  {!isCollapsed && <span>Cadastros</span>}
+                </div>
+                {!isCollapsed && (
+                  <ChevronDown className={`w-3 h-3 transition-transform ${isCadastrosOpen ? 'rotate-180' : ''}`} />
+                )}
+              </button>
+
+              {(!isCollapsed && isCadastrosOpen) && (
+                <div className="mt-1 space-y-1 pl-3 border-l-2 border-purple-50 ml-5 py-1">
+                  {registrationsMenuItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+
+                    return (
+                      <button
+                        type="button"
+                        key={item.id}
+                        id={`sidebar-nav-${item.id}`}
+                        onClick={() => handleNavClick(item.id)}
+                        className={`w-full group flex items-center rounded-lg transition-all duration-150 cursor-pointer px-3 py-2 gap-3 justify-between ${
+                          isActive
+                            ? 'bg-purple-50 text-[#660099] font-bold'
+                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon className={`w-4 h-4 shrink-0 ${
+                            isActive ? 'text-[#660099]' : 'text-slate-400 group-hover:text-slate-600'
+                          }`} />
+                          <span className="text-xs truncate">{item.label}</span>
+                        </div>
+                        {item.badge && <div className="shrink-0 ml-auto">{item.badge}</div>}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-            </button>
-
-            {(!isCollapsed && isCadastrosOpen) && (
-              <div className="mt-1 space-y-1 pl-3 border-l-2 border-purple-50 ml-5 py-1">
-                {registrationsMenuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.id;
-
-                  return (
-                    <button
-                      type="button"
-                      key={item.id}
-                      id={`sidebar-nav-${item.id}`}
-                      onClick={() => handleNavClick(item.id)}
-                      className={`w-full group flex items-center rounded-lg transition-all duration-150 cursor-pointer px-3 py-2 gap-3 justify-between ${
-                        isActive
-                          ? 'bg-purple-50 text-[#660099] font-bold'
-                          : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Icon className={`w-4 h-4 shrink-0 ${
-                          isActive ? 'text-[#660099]' : 'text-slate-400 group-hover:text-slate-600'
-                        }`} />
-                        <span className="text-xs truncate">{item.label}</span>
-                      </div>
-                      {item.badge && <div className="shrink-0 ml-auto">{item.badge}</div>}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Administração Accordion */}
           {isCurrentUserAdmin && (

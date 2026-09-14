@@ -389,6 +389,7 @@ export const MovementsView: React.FC = () => {
       return;
     }
 
+    let hasNegative = false;
     const batchEntries = [];
     for (let i = 0; i < selectedKit.components.length; i++) {
       const entry = kitEntries[i];
@@ -404,12 +405,32 @@ export const MovementsView: React.FC = () => {
           type: 'ENTREGA_KIT' as const,
           notes: kitNotes
         });
+
+        const item = items.find(it => it.id === entry.selectedItemId);
+        if (item) {
+          let stock = 0;
+          if (selectedLocationId === 'ALL') {
+            stock = item.quantity || 0;
+          } else {
+            const locStock = item.stocks?.find(s => s.locationId === selectedLocationId);
+            stock = locStock ? locStock.quantity : 0;
+          }
+          if (stock - entry.quantity < 0) {
+            hasNegative = true;
+          }
+        }
       }
     }
 
     if (batchEntries.length === 0) {
       setKitErrorMsg('Nenhum item para registrar entrega (todas as quantidades estão zeradas).');
       return;
+    }
+
+    if (hasNegative) {
+      if (!window.confirm('O saldo de algum(ns) item(ns) vai ficar negativo. Se tiver esses itens no estoque físico, por gentileza atualize depois para não ficar negativo no sistema. Deseja continuar?')) {
+        return;
+      }
     }
 
     const res = await registerBatchMovement({
@@ -1060,7 +1081,17 @@ export const MovementsView: React.FC = () => {
                           const entry = kitEntries[idx] || { selectedItemId: '', quantity: 0 };
                           const availableItems = findAllItemsForComponent(comp.itemId, comp.itemName, selectedLocationId);
                           const selectedVariant = availableItems.find(i => i.id === entry.selectedItemId);
-                          const currentStock = selectedVariant ? selectedVariant.quantity : 0;
+                          
+                          let currentStock = 0;
+                          if (selectedVariant) {
+                            if (selectedLocationId === 'ALL') {
+                              currentStock = selectedVariant.quantity || 0;
+                            } else {
+                              const locStock = selectedVariant.stocks?.find(s => s.locationId === selectedLocationId);
+                              currentStock = locStock ? locStock.quantity : 0;
+                            }
+                          }
+                          
                           const newStock = currentStock - entry.quantity;
                           const isInvalid = !!entry.selectedItemId && newStock < 0;
 

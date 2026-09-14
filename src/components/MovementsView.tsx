@@ -1048,8 +1048,8 @@ export const MovementsView: React.FC = () => {
                       <thead>
                         <tr className="bg-white border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px] sm:text-[11px]">
                           <th className="py-2 px-2 w-10 text-center">Foto</th>
-                          <th className="py-2 px-2 hidden sm:table-cell">Componente</th>
-                          <th className="py-2 px-2">EPI Específico (Escolha)</th>
+                          <th className="py-2 px-2">Componente</th>
+                          <th className="py-2 px-2 hidden sm:table-cell">Categoria</th>
                           <th className="py-2 px-2 text-center">Saldo</th>
                           <th className="py-2 px-2 w-28 text-center bg-purple-50/70 text-[#660099]">QTD</th>
                           <th className="py-2 px-2 text-center hidden sm:table-cell">Novo Saldo</th>
@@ -1074,27 +1074,21 @@ export const MovementsView: React.FC = () => {
                                 />
                               </td>
                               
-                              <td className="py-2 px-2 hidden sm:table-cell">
+                              <td className="py-2 px-2">
                                 <div className="font-bold text-slate-900">{comp.itemName}</div>
                                 <div className="text-[9px] text-slate-400 font-mono">Padrão: {comp.requiredQuantity} {comp.unit}</div>
+                                <div className="sm:hidden mt-1 text-[10px] text-slate-500 font-medium truncate max-w-[150px]">
+                                  {selectedVariant?.category || '—'}
+                                </div>
+                                {(!entry.selectedItemId || availableItems.length === 0) && (
+                                  <div className="text-[9px] font-bold text-rose-500 mt-0.5">⚠️ Nenhum item correspondente no estoque</div>
+                                )}
                               </td>
 
-                              <td className="py-2 px-2">
-                                {/* Mobile label for Componente */}
-                                <div className="sm:hidden font-bold text-slate-900 mb-1 text-[10px]">{comp.itemName} (Padrão: {comp.requiredQuantity})</div>
-                                <select
-                                  value={entry.selectedItemId}
-                                  onChange={(e) => setKitEntries(prev => ({ ...prev, [idx]: { ...prev[idx], selectedItemId: e.target.value } }))}
-                                  className={`w-full max-w-xs px-2 py-1.5 bg-white border rounded-lg text-[11px] sm:text-xs font-semibold focus:ring-2 focus:ring-[#660099] focus:outline-none ${!entry.selectedItemId ? 'border-rose-300 text-rose-600' : 'border-slate-200 text-slate-800'}`}
-                                  required
-                                >
-                                  <option value="" disabled>Selecione uma variante...</option>
-                                  {availableItems.map(item => (
-                                    <option key={item.id} value={item.id}>
-                                      {item.name} {item.caNumber ? `(CA: ${item.caNumber})` : ''}
-                                    </option>
-                                  ))}
-                                </select>
+                              <td className="py-2 px-2 hidden sm:table-cell">
+                                <span className="text-slate-500 font-medium text-[10px] truncate block max-w-[150px]" title={selectedVariant?.category || ''}>
+                                  {selectedVariant?.category || '—'}
+                                </span>
                               </td>
 
                               <td className="py-2 px-2 text-center font-mono font-bold text-slate-800">
